@@ -2,8 +2,9 @@
 
 SQLite via SQLAlchemy 2.0, migrated with Alembic. Design rules for this schema:
 
-1. **Money is integer cents.** Column names end in `_cents`. No floats in the money path.
-   The API boundary converts to/from decimal strings exactly once.
+1. **Money is integer cents**, end to end — columns, services, and JSON alike. Column
+   names end in `_cents`. Dollars appear only in the UI's formatting layer and in the
+   import helper that parses human-written amounts.
 2. **No JSON blobs for anything queryable.** JSON is used only for genuinely
    free-shaped payloads (notification context, raw extractor output kept for audit).
 3. **Enumerations that describe workflow are data** (catalog tables), because the user
@@ -307,6 +308,8 @@ government_total       = tax + registration + title + other_non_tax_fees
 dealer_controlled      = selling_price + dealer_fees_total + add_ons_total
 computed_otd           = dealer_controlled + government_total
 otd_variance           = quoted_otd − computed_otd        → flag when ≠ 0
+taxable_base           = selling_price + doc_fee + processing_fee
+                         + other_taxable_fees + Σ price where is_taxable
 implied_tax_rate_bp    = round(tax / taxable_base × 10000)
 tax_rate_variance_bp   = implied − profile.expected_tax_rate_bp → flag
 clean_dealer_controlled= dealer_controlled − Σ unwanted removable add-ons

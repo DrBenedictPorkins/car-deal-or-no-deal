@@ -166,8 +166,9 @@ audit record; the column is the index. A consistency test asserts they don't div
 
 ## 5. Pricing and normalization
 
-Money is stored as **integer cents**. No floats anywhere in the money path. The API
-speaks decimal strings; conversion happens at the schema boundary exactly once.
+Money is stored and transported as **integer cents**. No floats anywhere in the money
+path, including the JSON the browser receives — formatting happens at the very last
+step, in the view. A decimal helper exists for importing human-written dollar figures.
 
 Two headline numbers, always shown together:
 
