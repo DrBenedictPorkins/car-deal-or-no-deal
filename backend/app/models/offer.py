@@ -39,6 +39,10 @@ class Offer(Base):
     # --- money (integer cents, always) ------------------------------------
     msrp_cents: Mapped[int | None] = mapped_column(Integer)
     advertised_price_cents: Mapped[int | None] = mapped_column(Integer)
+    # "Our advertised price is $27,954 which includes our $175 doc fee." Adding the
+    # fee on top of a figure that already contains it would overstate the deal by the
+    # fee, so the inclusion has to be recorded rather than assumed either way.
+    advertised_includes_fees: Mapped[bool | None] = mapped_column(Boolean)
     selling_price_cents: Mapped[int | None] = mapped_column(Integer)
     # Stored only when the dealer *stated* a discount; also derivable.
     discount_cents: Mapped[int | None] = mapped_column(Integer)

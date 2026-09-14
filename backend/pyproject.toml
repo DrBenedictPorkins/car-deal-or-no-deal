@@ -19,6 +19,15 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.7",
 ]
+# Only needed for LIVE GMAIL mode. Unit and replay modes run without them, which
+# keeps the default test suite offline and free.
+gmail = [
+    "google-api-python-client>=2.150",
+    "google-auth-oauthlib>=1.2",
+    "google-auth>=2.35",
+    "cryptography>=43.0",
+    "keyring>=25.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -30,6 +39,11 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["error::DeprecationWarning:app.*"]
+markers = [
+    "live_gmail: hits a real Gmail account; skipped unless DEALBENCH_TEST_GMAIL=true",
+]
+# The default run stays offline and free. Live Gmail is opt-in.
+addopts = "-m 'not live_gmail'"
 
 [tool.ruff]
 line-length = 100

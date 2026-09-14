@@ -1,0 +1,246 @@
+{
+  "_readme": [
+    "Expected structured output for the reference negotiation, written by hand from",
+    "the figures in the original correspondence — NOT generated from the extractor.",
+    "That independence is the point: if these were produced by the code under test,",
+    "they would only prove the code agrees with itself.",
+    "",
+    "The .eml files beside this manifest are sanitized reconstructions. Real",
+    "correspondence never enters the repository; app.ingestion.sanitize turns it into",
+    "this same shape locally, and tests/fixtures/corpus/ is gitignored.",
+    "",
+    "Money is integer cents throughout, matching storage and the API."
+  ],
+
+  "buyer": {
+    "email": "buyer@example.test",
+    "registration_state": "PA",
+    "expected_tax_rate_bp": 600,
+    "wants_add_ons": false,
+    "local_dealer_premium_cents": 30000
+  },
+
+  "dealers": [
+    "Honda of Westport",
+    "Honda of Stamford",
+    "Curry Honda",
+    "Ocean Honda Milford",
+    "White Plains Honda",
+    "Mount Kisco Honda",
+    "Tarrytown Honda"
+  ],
+
+  "messages": {
+    "t5-westport-quote": {
+      "dealer": "Honda of Westport",
+      "direction": "INBOUND",
+      "actor_kind": "HUMAN",
+      "contact_name": "Chris Benton",
+      "offer": {
+        "selling_price_cents": 2803500,
+        "doc_fee_cents": 69900,
+        "registration_cents": 25300,
+        "tax_cents": 168810,
+        "quoted_otd_cents": 3077510,
+        "financing_required": false,
+        "add_ons": []
+      },
+      "vehicle": {
+        "mileage": 16,
+        "is_demo": false,
+        "is_loaner": false
+      },
+      "derived": {
+        "dealer_controlled_cents": 2873400,
+        "computed_otd_cents": 3067510,
+        "otd_variance_cents": 10000,
+        "otd_reconciled": false
+      },
+      "note": "The $100 gap between the quoted OTD and the line items is real and must be flagged, not reconciled away."
+    },
+
+    "t7-stamford-quote-1": {
+      "dealer": "Honda of Stamford",
+      "direction": "INBOUND",
+      "actor_kind": "HUMAN",
+      "contact_name": "Edwin Sanchez",
+      "offer": {
+        "msrp_cents": 2909000,
+        "selling_price_cents": 2809000,
+        "doc_fee_cents": 69900,
+        "registration_cents": 36800,
+        "tax_cents": 175122,
+        "quoted_otd_cents": 3130622,
+        "add_ons": [
+          { "name": "VIN Etching", "price_cents": 26900 },
+          { "name": "Wheel Locks", "price_cents": 12900 }
+        ]
+      },
+      "vehicle": {
+        "vin": "19XFL2H81TE040705",
+        "mileage": 10,
+        "is_demo": false
+      },
+      "derived": {
+        "dealer_controlled_cents": 2918700,
+        "computed_otd_cents": 3130622,
+        "otd_variance_cents": 0,
+        "otd_reconciled": true,
+        "add_ons_total_cents": 39800,
+        "implied_tax_rate_bp": 600
+      }
+    },
+
+    "t14-stamford-quote-2": {
+      "dealer": "Honda of Stamford",
+      "direction": "INBOUND",
+      "actor_kind": "HUMAN",
+      "offer": {
+        "msrp_cents": 2909000,
+        "selling_price_cents": 2732942,
+        "doc_fee_cents": 69900,
+        "other_non_tax_fees_cents": 36800,
+        "tax_cents": 170559,
+        "quoted_otd_cents": 3050001,
+        "add_ons": [
+          { "name": "VIN Etching", "price_cents": 26900, "already_installed": true, "mandatory_claimed": true },
+          { "name": "Wheel Locks", "price_cents": 12900, "already_installed": true, "mandatory_claimed": true }
+        ]
+      },
+      "derived": {
+        "dealer_controlled_cents": 2842642,
+        "computed_otd_cents": 3050001,
+        "otd_variance_cents": 0,
+        "otd_reconciled": true,
+        "discount_from_msrp_cents": 176058,
+        "implied_tax_rate_bp": 600
+      }
+    },
+
+    "t6-curry-jessica": {
+      "dealer": "Curry Honda",
+      "direction": "INBOUND",
+      "actor_kind": "HUMAN",
+      "contact_name": "Jessica Rivera",
+      "offer": {
+        "advertised_price_cents": 2795400,
+        "advertised_includes_fees": true,
+        "doc_fee_cents": 17500,
+        "selling_price_cents": null,
+        "quoted_otd_cents": null,
+        "financing_required": true,
+        "financing_provider": "Honda Financial",
+        "apr_bp": 714,
+        "financing_term_months": 84,
+        "prepayment_penalty": null,
+        "discount_clawback": null,
+        "add_ons": []
+      },
+      "derived": {
+        "dealer_controlled_cents": 2795400,
+        "computed_otd_cents": null,
+        "effective_otd_cents": null,
+        "price_basis": "ADVERTISED"
+      },
+      "note": "No selling price was quoted and no tax was given. The advertised figure already contains the doc fee, so adding it again would overstate the deal; and with no tax line there is no derivable OTD."
+    },
+
+    "t9-ocean-patrick": {
+      "dealer": "Ocean Honda Milford",
+      "direction": "INBOUND",
+      "actor_kind": "HUMAN",
+      "contact_name": "Patrick Mackin",
+      "offer": {
+        "msrp_cents": 2932000,
+        "selling_price_cents": 2882000,
+        "discount_cents": 50000,
+        "quoted_otd_cents": null,
+        "add_ons": []
+      },
+      "derived": {
+        "dealer_controlled_cents": 2882000,
+        "effective_otd_cents": null,
+        "fees_disclosed": false
+      },
+      "note": "A selling price with no fees named. Their dealer-controlled cost is a floor, not a figure."
+    },
+
+    "t4-tarrytown-corey-1": {
+      "dealer": "Tarrytown Honda",
+      "direction": "INBOUND",
+      "actor_kind": "AUTOMATED",
+      "contact_name": "Corey Smith",
+      "offer": null,
+      "note": "Signed by a sales manager, sent from the dealership's own domain, and composed of the buyer's own inquiry played back. Only the restatement check can catch this."
+    },
+
+    "t13-tarrytown-corey-2": {
+      "dealer": "Tarrytown Honda",
+      "direction": "INBOUND",
+      "actor_kind": "AUTOMATED",
+      "offer": null
+    },
+
+    "t2-tarrytown-ebony": {
+      "dealer": "Tarrytown Honda",
+      "direction": "INBOUND",
+      "offer": null
+    },
+
+    "t15-unrelated-blast": {
+      "dealer": null,
+      "direction": "INBOUND",
+      "needs_review": true,
+      "offer": null,
+      "note": "Belongs to no dealership. Must land in the review queue rather than being attached to whichever dealer is nearest."
+    }
+  },
+
+  "checkpoints": {
+    "after_westport_quote": {
+      "message": "t5-westport-quote",
+      "best_otd_dealer": "Honda of Westport",
+      "best_otd_cents": 3077510,
+      "dealer_states": {
+        "Honda of Westport": "QUOTE_RECEIVED",
+        "Honda of Stamford": "CONTACTED"
+      },
+      "note": "Stamford was contacted 26 hours earlier, which is inside the 48-hour follow-up threshold, so it is CONTACTED rather than overdue."
+    },
+    "after_stamford_first_quote": {
+      "message": "t7-stamford-quote-1",
+      "best_otd_dealer": "Honda of Westport",
+      "best_otd_cents": 3077510,
+      "dealer_states": {
+        "Honda of Stamford": "QUOTE_RECEIVED",
+        "Honda of Westport": "QUOTE_RECEIVED",
+        "Curry Honda": "QUOTE_RECEIVED",
+        "Tarrytown Honda": "RESPONDED"
+      },
+      "friction": {
+        "Tarrytown Honda": ["INSISTS_ON_VISIT"],
+        "Curry Honda": ["INSISTS_ON_PHONE_CALL", "FINANCING_CONDITIONED_PRICE"],
+        "White Plains Honda": ["INSISTS_ON_PHONE_CALL"]
+      },
+      "note": "Stamford has quoted, but at $31,306.22 it does not displace Westport."
+    },
+    "after_stamford_revision": {
+      "message": "t14-stamford-quote-2",
+      "best_otd_dealer": "Honda of Stamford",
+      "best_otd_cents": 3050001,
+      "dealer_states": {
+        "Honda of Stamford": "QUOTE_RECEIVED"
+      },
+      "stamford_offer_versions": 2
+    }
+  },
+
+  "outcomes": {
+    "stamford_improvement_cents": 80621,
+    "stamford_beats_westport_otd_cents": 27509,
+    "stamford_beats_westport_dealer_controlled_cents": 30758,
+    "stamford_discount_from_msrp_cents": 176058,
+    "cheapest_dealer_controlled_dealer": "Curry Honda",
+    "cheapest_dealer_controlled_cents": 2795400
+  }
+}

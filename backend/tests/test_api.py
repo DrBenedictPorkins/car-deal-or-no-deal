@@ -146,10 +146,11 @@ def test_drafts_support_edit_approve_discard_but_not_send(client, db):
     assert approved["status"] == "APPROVED"
     assert approved["approved_at"]
 
-    # Phase 1 must not be able to send, even by asking nicely.
+    # SENT is never settable by hand — sending goes through the endpoint that
+    # enforces the outbound allowlist and records the provider message id.
     blocked = client.patch(f"/api/drafts/{draft['id']}", json={"status": "SENT"})
     assert blocked.status_code == 400
-    assert "not enabled" in blocked.json()["detail"]
+    assert "/api/ingest/drafts" in blocked.json()["detail"]
 
 
 def test_generated_draft_cites_the_competing_number(client, db):

@@ -80,6 +80,8 @@ export interface Pricing {
   quoted_at: string;
   msrp_cents: number | null;
   selling_price_cents: number | null;
+  /** "SELLING" when the dealer quoted a price, "ADVERTISED" when they only listed one. */
+  price_basis: string | null;
   add_ons_total_cents: number;
   dealer_fees_total_cents: number;
   government_total_cents: number;
@@ -111,6 +113,8 @@ export interface Offer {
   version: number;
   is_current: boolean;
   quoted_at: string;
+  advertised_price_cents: number | null;
+  advertised_includes_fees: boolean | null;
   msrp_cents: number | null;
   selling_price_cents: number | null;
   doc_fee_cents: number | null;

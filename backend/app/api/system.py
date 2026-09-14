@@ -5,9 +5,7 @@ from fastapi import APIRouter
 from app.api.deps import DbSession
 from app.config import get_settings
 from app.llm import available_providers
-from app.models import BehaviorSignal
-from app.services import behavior, contradictions, notifications, state_engine
-from app.services.context import build_contexts
+from app.services import contradictions, notifications, signals, state_engine
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -33,17 +31,7 @@ def refresh(db: DbSession):
     Cheap and idempotent — every writer in the chain dedupes — so the UI can call it
     after any change without worrying about ordering.
     """
-    signal_count = 0
-    existing = {s.dedupe_key for s in db.query(BehaviorSignal).all() if s.dedupe_key}
-    for ctx in build_contexts(db).values():
-        for payload in behavior.derive_signals(ctx):
-            if payload["dedupe_key"] in existing:
-                continue
-            existing.add(payload["dedupe_key"])
-            db.add(BehaviorSignal(**payload))
-            signal_count += 1
-    db.flush()
-
+    signal_count = signals.refresh_signals(db)
     transitions = state_engine.refresh_all(db)
     found = contradictions.detect_all(db)
     notes = notifications.refresh(db)

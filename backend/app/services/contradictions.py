@@ -12,6 +12,8 @@ semantic conflicts that rules cannot see; its findings land in the same table, t
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -324,8 +326,8 @@ def detect_for_dealer(db: Session, ctx: DealerContext) -> list[Contradiction]:
     return found
 
 
-def detect_all(db: Session) -> list[Contradiction]:
+def detect_all(db: Session, *, now: datetime | None = None) -> list[Contradiction]:
     found: list[Contradiction] = []
-    for ctx in build_contexts(db).values():
+    for ctx in build_contexts(db, now=now).values():
         found.extend(detect_for_dealer(db, ctx))
     return found

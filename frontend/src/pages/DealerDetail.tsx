@@ -456,8 +456,22 @@ function OfferBreakdown({ offer }: { offer: Offer }) {
       <dl className="kv">
         <dt>MSRP</dt>
         <dd>{money(p.msrp_cents)}</dd>
-        <dt>Selling price</dt>
-        <dd>{money(p.selling_price_cents)}</dd>
+        {p.price_basis === "ADVERTISED" ? (
+          <>
+            <dt>Advertised price</dt>
+            <dd>
+              {money(offer.advertised_price_cents)}
+              <span className="muted">
+                {offer.advertised_includes_fees ? " (includes fees)" : " (no quote given)"}
+              </span>
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt>Selling price</dt>
+            <dd>{money(p.selling_price_cents)}</dd>
+          </>
+        )}
         {p.discount_from_msrp_cents !== null && (
           <>
             <dt>Discount from MSRP</dt>

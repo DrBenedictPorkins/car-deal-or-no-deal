@@ -12,7 +12,7 @@ top of the table is always the work.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -115,9 +115,11 @@ def _primary_contact(ctx: DealerContext):
     return primary.name, primary.role, primary.actor_kind == "AUTOMATED"
 
 
-def recent_changes(db: Session, *, since_hours: int = 24, limit: int = 12) -> list[str]:
+def recent_changes(
+    db: Session, *, since_hours: int = 24, limit: int = 12, now: datetime | None = None
+) -> list[str]:
     """"What changed since yesterday?" answered from the append-only tables."""
-    cutoff = utcnow() - timedelta(hours=since_hours)
+    cutoff = (now or utcnow()) - timedelta(hours=since_hours)
     names = {d.id: d.name for d in db.scalars(select(Dealer)).all()}
 
     def who(dealer_id: int | None) -> str:
@@ -155,8 +157,8 @@ def recent_changes(db: Session, *, since_hours: int = 24, limit: int = 12) -> li
     return lines[:limit]
 
 
-def build(db: Session) -> Dashboard:
-    contexts = list(build_contexts(db).values())
+def build(db: Session, *, now: datetime | None = None) -> Dashboard:
+    contexts = list(build_contexts(db, now=now).values())
     rows_by_dealer = {r.dealer_id: r for r in comparison.build_rows(contexts)}
 
     priced = [
@@ -266,7 +268,7 @@ def build(db: Session) -> Dashboard:
         you_owe_count=you_owe,
         dealer_owes_count=dealer_owes,
         open_contradictions=contradictions,
-        recent_changes=recent_changes(db),
+        recent_changes=recent_changes(db, now=now),
     )
     return Dashboard(summary=summary, rows=rows)
 

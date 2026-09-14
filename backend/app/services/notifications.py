@@ -8,6 +8,7 @@ happened, so re-running the refresh pass cannot produce a second copy.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -54,9 +55,9 @@ def emit(
     return row
 
 
-def refresh(db: Session) -> list[Notification]:
+def refresh(db: Session, *, now: datetime | None = None) -> list[Notification]:
     """Recompute notifications from current state. Safe to run repeatedly."""
-    contexts = list(build_contexts(db).values())
+    contexts = list(build_contexts(db, now=now).values())
     created: list[Notification] = []
 
     priced = [

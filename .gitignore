@@ -4,10 +4,14 @@ data/
 *.sqlite3
 *.db
 
-# Real correspondence corpus (see TODO.md open questions)
+# Real correspondence never enters the repository. The golden fixtures are
+# sanitized reconstructions and are the one exception.
 backend/tests/fixtures/corpus/
 *.eml
 *.mbox
+!backend/tests/fixtures/golden/*.eml
+# Re-identification key produced by the sanitizer. Never commit this.
+mapping.private.json
 
 # Secrets
 .env

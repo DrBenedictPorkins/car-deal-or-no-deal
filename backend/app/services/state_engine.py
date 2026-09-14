@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -214,15 +215,22 @@ def set_state_manually(
     return transition
 
 
-def refresh_all(db: Session) -> list[StateTransition]:
-    """Re-evaluate every dealer. Cheap, and safe to call after any ingest."""
+def refresh_all(db: Session, *, now: datetime | None = None) -> list[StateTransition]:
+    """Re-evaluate every dealer. Cheap, and safe to call after any ingest.
+
+    ``now`` is injectable so replay can evaluate each event at the time it actually
+    happened. Without it every historical message would be judged against wall clock
+    and the whole corpus would read as months overdue.
+    """
     transitions = []
-    for ctx in build_contexts(db).values():
+    for ctx in build_contexts(db, now=now).values():
         t = apply(db, ctx)
         if t is not None:
             transitions.append(t)
     return transitions
 
 
-def refresh_one(db: Session, dealer_id: int) -> StateTransition | None:
-    return apply(db, build_context(db, dealer_id))
+def refresh_one(
+    db: Session, dealer_id: int, *, now: datetime | None = None
+) -> StateTransition | None:
+    return apply(db, build_context(db, dealer_id, now=now))

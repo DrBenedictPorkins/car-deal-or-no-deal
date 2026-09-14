@@ -51,7 +51,7 @@ $100 unexplained charge is flagged, and the dashboard answers all seven UX quest
 
 ---
 
-## Phase 2 — Gmail ingestion
+## Phase 2 — Gmail ingestion ✅
 
 **Goal:** mail arrives by itself and lands on the right dealer.
 
@@ -69,17 +69,40 @@ $100 unexplained charge is flagged, and the dashboard answers all seven UX quest
    verbatim restatement of the buyer's own inquiry, send cadence), LLM only for residue.
 7. Review queue UI for unresolved senders and ambiguous threads.
 
-**Exit criteria:** a full historical import followed by two incremental syncs produces
-zero duplicate interactions; every message is attached to a dealer or explicitly parked in
-review; the automated lead-management pattern from the source workflow is detected.
+**Exit criteria (met):** the golden corpus replays into the correct negotiation; a full
+import followed by a second run produces zero new interactions; every message is
+attached to a dealer or parked in review; the lead-management restatement pattern is
+detected and the genuine reply from the same dealership is not.
 
-**Risks:** `historyId` expiry; forwarded duplicates; dealer groups sharing a domain (A3).
+Delivered beyond the original plan, because the testing requirements needed it:
+
+- A deterministic **rule extractor** (`enrichment/extract_rules.py`) reading labelled
+  amounts into structured offers with verbatim quotes and character offsets. It is the
+  baseline the Phase 3 model extractor will be held to — the golden manifest is the
+  shared yardstick, so a model that disagrees with the parser on a figure it can see is
+  a model that is guessing.
+- A **replay engine** that snapshots the whole board after every message, evaluating
+  each event at its own timestamp.
+- The **sanitizer**, turning real correspondence into committable fixtures.
+- A **Gmail fixture seeder** (`gmail.insert`) for staging a realistic test mailbox
+  without sending anything to anyone.
+- The **outbound send path**, behind three independent locks.
+
+**Risks handled:** `historyId` expiry falls back to a bounded date-window scan; a
+domain shared by several dealers resolves to nothing rather than guessing (A9);
+forwarded and re-imported duplicates collapse on the RFC-822 `Message-ID`.
 
 ---
 
-## Phase 3 — Structured extraction and assistance
+## Phase 3 — LLM extraction and assistance
 
-**Goal:** offers and facts appear without typing them.
+**Goal:** read what the rules cannot — prose offers, hedged commitments, intent.
+
+The rule extractor already covers labelled figures, so this phase is no longer about
+getting numbers out of a quote. It is about the residue: a price stated mid-sentence
+across two clauses, a condition implied rather than named, a commitment with a fuzzy
+deadline. The model's output lands in the same candidate → reconcile → commit path and
+is held to the same golden manifest.
 
 1. Provider adapters: Anthropic, OpenAI, Ollama — each using native structured output.
    Schema validation before persistence; a schema failure is a retry, then a review flag.
@@ -94,9 +117,10 @@ review; the automated lead-management pattern from the source workflow is detect
 8. Draft generation using the full structured state (best competitor, buyer profile,
    open questions), with EDIT / APPROVE / DISCARD. No sending.
 
-**Exit criteria:** replaying the fixture emails through extraction reproduces the
-hand-entered Phase 1 offers within exact cents on every line item; every extracted fact is
-clickable back to its quote; no arithmetic originates from the model.
+**Exit criteria:** the model extractor matches the golden manifest to the cent on every
+message the rule extractor already handles, and adds coverage on at least the prose
+cases it currently misses; every extracted fact is clickable back to its quote; no
+arithmetic originates from the model.
 
 **Risks:** extraction of financing conditionals ("$27,779 *if* you finance"); hallucinated
 add-ons; the model summarizing the buyer's quoted text as the dealer's position (A5).

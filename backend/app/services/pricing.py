@@ -53,6 +53,9 @@ class PricingResult:
 
     msrp_cents: int | None
     selling_price_cents: int | None
+    # Which figure the dealer-controlled cost was built from: a quoted selling price,
+    # or an advertised price standing in for one.
+    price_basis: str | None
 
     add_ons_total_cents: int
     dealer_fees_total_cents: int
@@ -128,9 +131,20 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
     ) + sum(line.price_cents for line in government_lines)
 
     selling = offer.selling_price_cents
-    dealer_controlled = (
-        selling + dealer_fees_total + add_ons_total if selling is not None else None
-    )
+    if selling is not None:
+        price_basis = "SELLING"
+        dealer_controlled = selling + dealer_fees_total + add_ons_total
+    elif offer.advertised_price_cents is not None:
+        # An advertised price is a weaker basis than a quote, but it is a real
+        # dealer-controlled figure and dropping it would hide the dealer entirely
+        # from the comparison.
+        price_basis = "ADVERTISED"
+        dealer_controlled = offer.advertised_price_cents + add_ons_total
+        if not offer.advertised_includes_fees:
+            dealer_controlled += dealer_fees_total
+    else:
+        price_basis = None
+        dealer_controlled = None
     # An OTD is only derivable when the government side is actually known. Adding up
     # a selling price and a doc fee and calling it "out the door" would make a dealer
     # who simply withheld the tax line look like the cheapest in the comparison.
@@ -152,9 +166,10 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
         else None
     )
 
+    basis_amount = selling if selling is not None else offer.advertised_price_cents
     discount = (
-        offer.msrp_cents - selling
-        if offer.msrp_cents is not None and selling is not None
+        offer.msrp_cents - basis_amount
+        if offer.msrp_cents is not None and basis_amount is not None
         else None
     )
 
@@ -166,13 +181,13 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
     taxable_base: int | None = None
     implied_bp: int | None = None
     tax_variance_bp: int | None = None
-    if selling is not None and offer.tax_cents:
+    if basis_amount is not None and offer.tax_cents:
         taxable_extras = _sum(
             offer.doc_fee_cents,
             offer.processing_fee_cents,
             offer.other_taxable_fees_cents,
         ) + sum(line.price_cents for line in offer.lines if line.is_taxable)
-        taxable_base = selling + taxable_extras
+        taxable_base = basis_amount + taxable_extras
         if taxable_base > 0:
             implied_bp = round(offer.tax_cents * 10_000 / taxable_base)
             if expected_tax_rate_bp is not None:
@@ -200,7 +215,16 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
     ) or any(line.kind == FeeKind.DEALER_FEE for line in offer.lines)
 
     warnings: list[str] = []
-    if selling is not None and not fees_disclosed:
+    if price_basis == "ADVERTISED":
+        warnings.append(
+            "No selling price was quoted — this uses the advertised price"
+            + (
+                ", which the dealer says already includes their fees."
+                if offer.advertised_includes_fees
+                else ", which may not be what they would actually write up."
+            )
+        )
+    if basis_amount is not None and not fees_disclosed:
         warnings.append(
             "No dealer fees disclosed. Nearly every dealer charges one, so the "
             "dealer-controlled cost here is a floor, not a final number."
@@ -217,7 +241,7 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
             f"{expected_tax_rate_bp / 100:.2f}% — the tax base may include an "
             f"undisclosed charge."
         )
-    if selling is None:
+    if basis_amount is None:
         warnings.append("No selling price on this offer.")
     if quoted_otd is None and computed_otd is None:
         warnings.append(
@@ -225,7 +249,11 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
             "enough line items to derive one."
         )
 
-    is_complete = selling is not None and offer.tax_cents is not None and effective_otd is not None
+    is_complete = (
+        price_basis == "SELLING"
+        and offer.tax_cents is not None
+        and effective_otd is not None
+    )
 
     return PricingResult(
         offer_id=offer.id,
@@ -233,6 +261,7 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
         quoted_at=offer.quoted_at,
         msrp_cents=offer.msrp_cents,
         selling_price_cents=selling,
+        price_basis=price_basis,
         add_ons_total_cents=add_ons_total,
         dealer_fees_total_cents=dealer_fees_total,
         government_total_cents=government_total,

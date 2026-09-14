@@ -16,6 +16,8 @@ Open it and know, in under ten seconds:
   assumptions that could be wrong
 - [DATA_MODEL.md](DATA_MODEL.md) — the schema and the arithmetic
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — five phases with exit criteria
+- [TESTING.md](TESTING.md) — the three transport modes, the golden dataset, sanitizing
+  your real correspondence, and live Gmail
 - [TODO.md](TODO.md) — running state, plus open questions
 
 ---
@@ -28,7 +30,8 @@ Open it and know, in under ten seconds:
 ./scripts/dev.sh       # http://127.0.0.1:5173  (API docs on :8756/docs)
 ```
 
-Tests: `./scripts/test.sh`
+Tests: `./scripts/test.sh` — 250 tests, offline and free. Live Gmail is opt-in; see
+[TESTING.md](TESTING.md).
 
 Nothing leaves your machine. No LLM is configured by default, no Gmail scope is
 requested until you connect an account, and the database is a single SQLite file under
@@ -42,6 +45,11 @@ python -m app.cli seed          # load the reference scenario (--live leaves it 
 python -m app.cli report        # print the dashboard to the terminal
 python -m app.cli refresh       # re-run signals, states, contradictions, notifications
 python -m app.cli reset --yes   # drop and recreate every table
+
+python -m app.cli replay --golden --reset   # rebuild the negotiation message by message
+python -m app.cli sanitize IN OUT           # real correspondence → safe fixtures
+python -m app.cli gmail-auth                # OAuth; no password is ever requested
+python -m app.cli gmail-sync                # incremental import (--historical for a full one)
 ```
 
 `python -m app.cli report` on the seeded database:
@@ -85,16 +93,33 @@ amount of ingestion will save it.
 | **Drafts** | Generated from structured state, with EDIT / APPROVE / DISCARD. Sending is deliberately not implemented |
 | **Queries** | The canned questions from the brief answered with exact SQL |
 
+## What is built (Phase 2)
+
+Ingestion, behind a transport abstraction that the negotiation engine cannot see past.
+
+| | |
+| --- | --- |
+| **Sources** | Gmail (OAuth, historical import, `historyId` incremental sync with an expiry fallback), `.eml` directories, in-memory fixtures — all producing one `RawMessage` type |
+| **Normalization** | HTML→text preserving table columns, quoted-reply and signature stripping with the stripped region kept |
+| **Resolution** | known address → mail domain → Gmail thread → dealership named in the body → review queue. Never a guess |
+| **Classification** | human vs. automated, rules first, with the reason recorded — including the lead-management pattern that replays the buyer's own inquiry |
+| **Extraction** | deterministic parser reading labelled amounts into structured offers, with the verbatim quote and character offsets behind every figure |
+| **Dedupe** | provider id, content fingerprint, and RFC-822 `Message-ID` — a re-import or a forwarded copy is one message |
+| **Replay** | a corpus fed chronologically, with the whole board snapshotted after each event |
+| **Sanitizer** | real correspondence → committable fixtures, deterministically |
+| **Outbound** | draft → approve → send, behind three independent locks |
+
 ### Deliberately not built yet
 
-Gmail ingestion (Phase 2), LLM extraction (Phase 3), transcript and document pipelines
-(Phase 4), notifications-at-scale and natural-language querying (Phase 5). The schema
-and the provider abstraction for all of them are in place, so those phases add code
-rather than migrations.
+LLM extraction (Phase 3), transcript and document pipelines (Phase 4), notifications at
+scale and natural-language querying (Phase 5). The schema and the provider abstraction
+for all of them are in place, so those phases add code rather than migrations.
 
-Autonomous sending is architected for and switched off. `DraftMessage` has a `SENT`
-state, nothing writes it, the API refuses to set it, and the Gmail send scope is not
-requested.
+Autonomous sending is still not a thing. There is now a send path, and it is locked
+three ways: the transport must be enabled (off by default), safe mode must find the
+recipient on an explicit allowlist, and a human must have approved that specific draft.
+`PATCH /api/drafts/{id}` cannot set `SENT`, and `gmail.send` is only requested when
+sending is switched on. See [TESTING.md](TESTING.md#5-outbound-safety).
 
 ---
 

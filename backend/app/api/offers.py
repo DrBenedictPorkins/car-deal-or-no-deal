@@ -26,6 +26,7 @@ def _serialize(db: Session, offer: Offer) -> OfferOut:
         quoted_at=result.quoted_at,
         msrp_cents=result.msrp_cents,
         selling_price_cents=result.selling_price_cents,
+        price_basis=result.price_basis,
         add_ons_total_cents=result.add_ons_total_cents,
         dealer_fees_total_cents=result.dealer_fees_total_cents,
         government_total_cents=result.government_total_cents,

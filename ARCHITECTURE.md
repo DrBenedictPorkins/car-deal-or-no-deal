@@ -235,7 +235,23 @@ several. An adapter's only job is `raw source → Interaction + channel-specific
 
 Adding a provider (Outlook, IMAP) means writing an adapter, not touching the engine.
 
-### 7.1 Gmail specifics
+### 7.1 Test transports
+
+The same abstraction carries the test strategy. A `MessageSource` yields `RawMessage`;
+nothing downstream knows which one produced it.
+
+| Mode | Source | Network |
+| --- | --- | --- |
+| UNIT | messages built in the test | none |
+| REPLAY | `.eml` files fed chronologically | none |
+| LIVE GMAIL | the real API, dedicated account | yes |
+
+A test asserts transport independence directly: the same content is ingested through
+the in-memory source and through `.eml` files on disk, and the resulting database must
+match. Replay therefore tests the engine, and the live suite is left to test only the
+part replay cannot — Gmail itself. Details in [TESTING.md](TESTING.md).
+
+### 7.2 Gmail specifics
 
 - OAuth 2.0 installed-app flow with loopback redirect. **No password is ever requested or
   stored.** Scope is `gmail.readonly` in Phases 2–4; `gmail.compose` is added only when
@@ -243,7 +259,10 @@ Adding a provider (Outlook, IMAP) means writing an adapter, not touching the eng
 - Historical import by query (`from:` domains, label, or date window), then incremental
   sync via `users.history.list` from a stored `historyId`, falling back to a bounded
   date-window scan if the history cursor expires.
-- Dedupe on Gmail `message_id` **and** RFC-822 `Message-ID`.
+- Dedupe on three keys: Gmail `message_id`, a content fingerprint, and the RFC-822
+  `Message-ID`. Any one of them matching means the message is already held, which is
+  what makes a re-import, a forwarded copy and a Sent-folder echo of something the app
+  itself sent all collapse to one interaction.
 - HTML is converted to text; quoted reply chains and signature blocks are detected and
   marked so extraction sees only the new content — an automated lead-management system
   that quotes the buyer's original inquiry verbatim must not be read as the dealer
@@ -312,11 +331,28 @@ one URL. During development Vite proxies `/api` to the backend.
 
 ---
 
+## 10.1 Outbound safety
+
+Sending exists, and is locked three ways — all of which must be open:
+
+1. **Transport enabled** (`send_enabled`, default off). Otherwise the transport is a
+   `NullTransport` that refuses and says why.
+2. **Safe mode** (`send_safe_mode`, default on). Every recipient, To and Cc alike, must
+   appear in an explicit allowlist. One unlisted address blocks the whole message.
+3. **Human approval.** Only a draft in `APPROVED` may be sent, and only once.
+
+The allowlist check lives in a `SafeTransport` decorator that wraps whatever transport
+is configured, rather than being reimplemented inside each one. The failure being
+guarded against is a future transport that forgets the check, and forgetting means real
+mail to a real dealership from a test run. Scopes follow the same principle:
+`gmail.send` is requested only when sending is on, and `gmail.insert` — used to stage
+fixtures in a test mailbox — only when that is explicitly enabled *and* the target
+account is named in the allowlist.
+
 ## 11. Deliberate non-goals (initially)
 
-- No autonomous sending. Drafts only, with explicit EDIT / APPROVE / DISCARD. The
-  `DraftMessage` state machine has a `SENT` state and a send port, but no send
-  implementation is wired and the OAuth scope to do it is not requested.
+- No autonomous sending. Drafts are generated, and a human approves each one before it
+  can leave. The three locks above are the mechanism, not a policy.
 - No multi-user, no hosted deployment, no auth.
 - No live transcription. The upload endpoint and `transcript_source` schema exist so audio
   can be dropped in later without a migration.
@@ -335,10 +371,12 @@ These are the places where the design could be wrong. They are tracked, not buri
 | A2 | One active negotiation "campaign" at a time | A user shopping two cars at once sees merged state | Schema carries a nullable `campaign_id` from day one; UI exposes it later |
 | A3 | A dealer is identified by email domain | Dealer groups sharing one domain across rooftops merge incorrectly | Domain is a *hint*; resolution also uses signature address/phone, and unresolved mail lands in a review queue rather than guessing |
 | A4 | One vehicle per offer | Dealers sometimes quote alternates in one email | `Offer.vehicle_id` is required but a single interaction may produce multiple offers |
-| A5 | Quoted-text stripping is reliable enough to trust | Extraction reads the buyer's own words as the dealer's commitment | Stripping is conservative; the stripped region is preserved and shown; automated-sender classification is a second guard |
+| A5 | Quoted-text stripping is reliable enough to trust | Extraction reads the buyer's own words as the dealer's commitment | Stripping is conservative and the stripped region is preserved rather than discarded; automated-sender classification is a second guard; a test asserts a quoted price cannot reach the extractor |
 | A6 | Timestamps are trustworthy for ordering | Contradiction detection picks the wrong "later" statement | Store both source timestamp and ingest timestamp; contradictions show both and never auto-resolve |
 | A7 | The buyer's tax jurisdiction is fixed (PA / one ZIP) | Implied-tax-rate check false-positives | Rate lives in the buyer profile and is editable; a mismatch is a flag, never a correction |
 | A8 | Dealer "OTD" always means the same thing | Silent comparison error | We never trust a quoted OTD alone — reconciliation against line items runs on every offer |
+| A9 | A dealership's mail domain is stable and exclusive | Two rooftops in one group merge into one negotiation | A domain matching more than one dealer resolves to *nothing* and goes to review; a test covers it |
+| A10 | The rule extractor reads what a person would read | A mislabelled figure enters the model as fact | Every extracted amount carries its verbatim line and offsets; totals are recomputed and a mismatch flags the offer for review rather than being accepted |
 
 ---
 

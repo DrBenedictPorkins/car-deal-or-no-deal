@@ -16,7 +16,17 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__, logging_config
-from app.api import dealers, drafts, interactions, knowledge, offers, profile, system, views
+from app.api import (
+    dealers,
+    drafts,
+    ingest,
+    interactions,
+    knowledge,
+    offers,
+    profile,
+    system,
+    views,
+)
 from app.config import get_settings
 from app.db import engine, session_scope
 from app.models import Base
@@ -72,7 +82,17 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    for module in (profile, dealers, interactions, offers, knowledge, drafts, views, system):
+    for module in (
+        profile,
+        dealers,
+        interactions,
+        offers,
+        knowledge,
+        drafts,
+        ingest,
+        views,
+        system,
+    ):
         app.include_router(module.router)
 
     if FRONTEND_DIST.is_dir():

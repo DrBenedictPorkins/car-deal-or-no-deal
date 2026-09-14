@@ -90,8 +90,9 @@ def update_draft(draft_id: int, payload: DraftPatch, db: DbSession):
         raise HTTPException(
             status_code=400,
             detail=(
-                "Automatic sending is not enabled. Copy the approved draft into your "
-                "mail client and send it yourself."
+                "Status cannot be set to SENT directly. Approve the draft, then POST "
+                "to /api/ingest/drafts/{id}/send — which enforces the outbound "
+                "allowlist and records the provider message id."
             ),
         )
     if "body" in data or "subject" in data:

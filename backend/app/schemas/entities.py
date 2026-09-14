@@ -299,6 +299,7 @@ class OfferIn(BaseModel):
     quoted_at: datetime
     msrp_cents: int | None = None
     advertised_price_cents: int | None = None
+    advertised_includes_fees: bool | None = None
     selling_price_cents: int | None = None
     discount_cents: int | None = None
     destination_cents: int | None = None
@@ -331,6 +332,7 @@ class PricingOut(BaseModel):
     quoted_at: datetime
     msrp_cents: int | None
     selling_price_cents: int | None
+    price_basis: str | None = None
     add_ons_total_cents: int
     dealer_fees_total_cents: int
     government_total_cents: int
@@ -365,6 +367,7 @@ class OfferOut(ORMModel):
     quoted_at: datetime
     msrp_cents: int | None = None
     advertised_price_cents: int | None = None
+    advertised_includes_fees: bool | None = None
     selling_price_cents: int | None = None
     discount_cents: int | None = None
     destination_cents: int | None = None

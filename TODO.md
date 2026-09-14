@@ -41,27 +41,46 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 - [x] Undisclosed dealer fees flagged rather than treated as zero
 - [x] Verified end to end in a browser (dashboard, detail, comparison, profile)
 
-## Phase 2 — Gmail ingestion
+## Phase 2 — Ingestion, replay and real-mail testing
 
-- [ ] OAuth 2.0 installed-app flow (`gmail.readonly`), encrypted token at rest
-- [ ] Log redaction filter for token-shaped strings
-- [ ] Historical import with dry-run preview
-- [ ] MIME normalization, HTML→text, quoted-reply and signature stripping
-- [ ] Incremental sync via `historyId` with expiry fallback
-- [ ] Identity resolution (exact → domain → signature → review queue)
-- [ ] Automated-vs-human classification (rules first)
-- [ ] Review queue UI
+- [x] Provider-neutral `RawMessage` / `MessageSource` / `MessageTransport` abstraction
+- [x] Three transport modes: UNIT, REPLAY, LIVE GMAIL — with a test asserting the
+      engine cannot tell them apart
+- [x] OAuth 2.0 installed-app flow, narrowest-scope-per-configuration
+- [x] Token encrypted at rest (keyring, else 0600 file with a warning)
+- [x] Log redaction filter for token-shaped strings
+- [x] Historical import, bounded, with a headers-only dry-run preview
+- [x] Incremental sync via `historyId` with a date-window fallback on expiry
+- [x] MIME normalization, HTML→text preserving table columns, quote/signature stripping
+- [x] Identity resolution (address → domain → thread → named dealer → review queue)
+- [x] Automated-vs-human classification with a recorded reason
+- [x] Three-key dedupe: provider id, content fingerprint, RFC-822 `Message-ID`
+- [x] Deterministic rule extractor with verbatim quotes and character offsets
+- [x] Candidate → reconcile → commit, flagging rather than silently accepting
+- [x] Replay engine with a per-event checkpoint of the whole board
+- [x] Golden corpus (24 sanitized `.eml`) + hand-authored `manifest.json`
+- [x] Fixture sanitizer, deterministic, with a residue report
+- [x] Gmail fixture seeder (`gmail.insert`) for staging a test mailbox
+- [x] Outbound send path behind three independent locks
+- [x] Live Gmail test suite, opt-in and skipped by default
+- [x] Review queue API (`/api/ingest/review`, assign by hand)
+- [ ] Review queue **UI** — the API exists, the dashboard does not surface it yet
+- [ ] Attachment download (`gmail.attachments`) — deferred to the Phase 4 document pipeline
 
-## Phase 3 — Structured extraction and assistance
+## Phase 3 — LLM extraction and assistance
 
 - [ ] Anthropic / OpenAI / Ollama adapters with native structured output
 - [ ] Extraction schemas returning line items and quotes, never totals
-- [ ] Candidate → reconcile → commit flow with diff-before-commit
-- [ ] Fact writing with quote offsets and superseding
-- [ ] Extraction-driven state transitions
+- [ ] Held to the same golden manifest as the rule extractor
+- [ ] Prose cases the rules miss: hedged conditions, split-clause prices, fuzzy deadlines
+- [x] Candidate → reconcile → commit flow (built for the rule extractor; the model
+      output goes through the same path)
+- [x] Fact writing with quote offsets and superseding
+- [x] Extraction-driven state transitions
 - [ ] Thread and negotiation summaries
 - [ ] LLM-narrated next action (rule still chooses)
-- [ ] Draft generation from full structured state
+- [x] Draft generation from full structured state (rule-based; the model rewrites the
+      prose later, not the numbers)
 
 ## Phase 4 — Transcripts, documents, contradictions
 
@@ -86,21 +105,29 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 Answering these unblocks the real-corpus integration testing and a few design choices.
 YES/NO unless marked otherwise.
 
-### Real email corpus (blocking for integration tests)
+### Real email corpus
 
-1. Will you provide the corpus as individual `.eml` files? **(YES/NO — if NO, is it a
-   Gmail `.mbox` export, a Takeout archive, or should I read it live via the Gmail API?)**
-2. Should the real corpus stay gitignored and local-only, never committed? **(YES/NO)**
-3. Do you want a redaction pass that produces a sanitized, committable subset for CI
-   (real names/addresses replaced, dollar amounts preserved)? **(YES/NO)**
-4. Are the dealer names and salesperson names in your brief the real ones, i.e. may they
-   appear in committed fixture code? **(YES/NO)**
-5. Does the corpus include your own outbound messages, or only what dealers sent you?
-   **(elaborate — outbound is needed for "who owes a response" and response-time scoring)**
-6. Should I build the golden-file test as "corpus in → exact expected offers/states out",
-   with the expected values checked in? **(YES/NO)**
-7. Do any of the real threads include PDF worksheets or screenshots I should plan the
-   document pipeline around now? **(YES/NO)**
+Answered by building it — the defaults taken are listed so they can be overridden:
+
+- The corpus is read as `.eml` (a directory, or a Gmail export converted to one). An
+  `.mbox` splitter is a small addition if that is the shape you have.
+- Real correspondence stays gitignored and local-only.
+- The sanitizer produces a committable subset; the golden fixtures are sanitized
+  reconstructions, and the real corpus never enters the repository.
+- Dealer names are kept (business identities); people, addresses, phone numbers and
+  VINs are replaced. `--keep-vins` and `keep_dealer_names=False` flip either way.
+- Outbound messages are expected in the corpus and are needed for "who owes a response"
+  and response-time scoring. A corpus with only inbound mail still works, but every
+  dealer will read as owing you a reply.
+- Golden expectations are checked in, hand-authored rather than generated.
+
+Still open:
+
+1. Is your corpus `.eml`, `.mbox`, or a Takeout archive? **(elaborate — only `.mbox`
+   needs new code, and it is small)**
+2. Do the real threads include PDF worksheets or screenshots? **(YES/NO — attachment
+   metadata is already captured; downloading them is the Phase 4 document pipeline)**
+3. Does your corpus include your own sent messages? **(YES/NO)**
 
 ### Product decisions
 
@@ -115,9 +142,12 @@ YES/NO unless marked otherwise.
     dealers automatically? **(elaborate)**
 12. What is your default follow-up threshold before a dealer counts as stalled — 24h, 48h,
     72h? **(elaborate; currently 48h to nudge, 7 days to `NO_RESPONSE`)**
-13. Should drafts be pushed to Gmail as real Gmail drafts once Phase 2 lands (requires the
-    `gmail.compose` scope), or stay inside this app until you explicitly say otherwise?
-    **(YES/NO — currently: stay inside the app)**
+13. Sending now exists behind three locks and is off by default. Should approved drafts
+    also be written to Gmail as native drafts (`gmail.compose`), so you can send from
+    your own mail client? **(YES/NO — currently: no, they stay in the app or go through
+    the allowlisted send path)**
+17. Should the dashboard surface the review queue, or is the API enough for now?
+    **(YES/NO)**
 
 ### LLM
 
@@ -129,6 +159,31 @@ YES/NO unless marked otherwise.
     high, or always wait for your review? **(elaborate; currently always review)**
 
 ---
+
+## Notes from building Phase 2
+
+- **Nothing about the corpus should be generated by the code under test.** The golden
+  manifest is hand-authored from the original figures. An expectations file produced by
+  the extractor would pass forever and mean nothing.
+- **Time has to be injectable end to end.** Replaying a historical negotiation against
+  wall clock makes every message look months overdue, so `now` is threaded through the
+  state engine, contradictions, notifications and the dashboard. This also made the
+  existing tests less fragile.
+- **The label nearest the figure wins, not the first one read.** "got approval for $500
+  off, so $28,820 selling price" parsed as a $500 car until claims were resolved by
+  proximity rather than document order. Related: label matching must stop at the end of
+  a line, or a columnar quote files every amount under the *next* row's label.
+- **An accessory's name is the merge of its overlapping matches.** "VIN etching" fires
+  `vin etch`, `etch` and `etching`; taking whichever reached furthest right named the
+  line item "Etching".
+- **A duplicate dealer on one domain is unresolvable, and that is correct.** A test
+  failure turned out to be the test accidentally creating a second store on the same
+  domain — the resolver refused to guess, which is exactly the designed behaviour.
+- **Sanitizing has to be deterministic across the whole corpus, not per file.** One
+  salesperson with a different fake address in each message becomes four strangers, and
+  thread association quietly falls apart.
+- **The allowlist belongs in a wrapper, not in each transport.** The realistic failure
+  is a transport added later that forgets the check.
 
 ## Notes from building Phase 1
 
