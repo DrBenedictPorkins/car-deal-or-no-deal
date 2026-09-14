@@ -43,6 +43,8 @@ def _serialize(db: Session, offer: Offer) -> OfferOut:
         unwanted_add_ons_cents=result.unwanted_add_ons_cents,
         clean_dealer_controlled_cents=result.clean_dealer_controlled_cents,
         clean_otd_cents=result.clean_otd_cents,
+        fees_disclosed=result.fees_disclosed,
+        government_disclosed=result.government_disclosed,
         warnings=result.warnings,
         is_complete=result.is_complete,
     )

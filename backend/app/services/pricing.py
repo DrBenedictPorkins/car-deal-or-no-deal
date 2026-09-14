@@ -79,6 +79,11 @@ class PricingResult:
     clean_dealer_controlled_cents: int | None
     clean_otd_cents: int | None
 
+    # False when the dealer named no fees at all. Their absence is not evidence of
+    # zero, so the dealer-controlled cost is a floor rather than a figure.
+    fees_disclosed: bool = True
+    government_disclosed: bool = True
+
     lines: list[LineBreakdown] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     is_complete: bool = False
@@ -185,7 +190,21 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
         effective_otd - unwanted if effective_otd is not None else None
     )
 
+    fees_disclosed = any(
+        value is not None
+        for value in (
+            offer.doc_fee_cents,
+            offer.processing_fee_cents,
+            offer.other_taxable_fees_cents,
+        )
+    ) or any(line.kind == FeeKind.DEALER_FEE for line in offer.lines)
+
     warnings: list[str] = []
+    if selling is not None and not fees_disclosed:
+        warnings.append(
+            "No dealer fees disclosed. Nearly every dealer charges one, so the "
+            "dealer-controlled cost here is a floor, not a final number."
+        )
     if variance:
         warnings.append(
             f"Quoted OTD {fmt(quoted_otd)} does not match the line items "
@@ -231,6 +250,8 @@ def compute(offer: Offer, *, expected_tax_rate_bp: int | None = None) -> Pricing
         unwanted_add_ons_cents=unwanted,
         clean_dealer_controlled_cents=clean_dealer_controlled,
         clean_otd_cents=clean_otd,
+        fees_disclosed=fees_disclosed,
+        government_disclosed=has_government_data,
         lines=[
             LineBreakdown(
                 id=line.id,

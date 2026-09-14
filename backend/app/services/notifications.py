@@ -74,12 +74,16 @@ def refresh(db: Session) -> list[Notification]:
 
         # --- offers ------------------------------------------------------
         for result in ctx.offer_history:
+            headline = (
+                f"at {fmt(result.effective_otd_cents)} OTD"
+                if result.effective_otd_cents is not None
+                else f"at {fmt(result.dealer_controlled_cents)} dealer cost, no OTD given"
+            )
             row = emit(
                 db,
                 type_=NotificationType.NEW_OFFER,
                 severity=Severity.INFO,
-                title=f"{dealer.name}: offer v{result.version} "
-                f"at {fmt(result.effective_otd_cents)} OTD",
+                title=f"{dealer.name}: offer v{result.version} {headline}",
                 body=f"Dealer-controlled cost {fmt(result.dealer_controlled_cents)}.",
                 dedupe_key=f"offer:{result.offer_id}",
                 dealer_id=dealer.id,

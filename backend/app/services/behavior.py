@@ -160,6 +160,15 @@ def _transparency(ctx: DealerContext) -> ScoredDimension:
         score -= 20
         reasons.append("Every inbound message looks automated (-20)")
 
+    # Saying one thing and quoting another is the clearest transparency signal there is.
+    unresolved = len(ctx.open_contradictions)
+    if unresolved:
+        penalty = min(30, 15 * unresolved)
+        score -= penalty
+        reasons.append(
+            f"{unresolved} unresolved contradiction(s) in what they've told you (-{penalty})"
+        )
+
     return ScoredDimension(
         BehaviorDimension.TRANSPARENCY, max(0, min(100, score)), reasons, basis="signals"
     )

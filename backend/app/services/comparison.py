@@ -35,6 +35,7 @@ class ComparisonRow:
     selling_price_cents: int | None
     discount_from_msrp_cents: int | None
     dealer_fees_total_cents: int | None
+    fees_disclosed: bool
     add_ons_total_cents: int | None
     dealer_controlled_cents: int | None
     clean_dealer_controlled_cents: int | None
@@ -83,6 +84,8 @@ def _unresolved(ctx: DealerContext) -> list[str]:
     else:
         if p.quoted_otd_cents is None:
             issues.append("No written OTD")
+        if not p.fees_disclosed:
+            issues.append("No dealer fees disclosed — their cost is a floor, not a figure")
         if p.otd_variance_cents:
             issues.append(f"{fmt(abs(p.otd_variance_cents))} unexplained in the quote")
         if p.tax_rate_variance_bp is not None and abs(p.tax_rate_variance_bp) >= 10:
@@ -99,9 +102,9 @@ def _unresolved(ctx: DealerContext) -> list[str]:
         if offer.financing_required and offer.prepayment_penalty is None:
             issues.append("Prepayment penalty unconfirmed")
     for q in ctx.open_buyer_questions:
-        issues.append(f"Unanswered: {q.text[:80]}")
+        issues.append(f"Unanswered: {q.text}")
     for c in ctx.open_contradictions:
-        issues.append(f"Contradiction: {c.summary[:80]}")
+        issues.append(f"Contradiction: {c.summary}")
     vehicle_ids = {o.vehicle_id for o in ctx.offers if o.vehicle_id}
     if len(vehicle_ids) > 1:
         issues.append("Quotes cover more than one vehicle")
@@ -122,6 +125,9 @@ def _cleanliness(ctx: DealerContext) -> tuple[int, list[str]]:
     if p.otd_variance_cents:
         score -= 20
         reasons.append(f"{fmt(abs(p.otd_variance_cents))} unexplained (-20)")
+    if not p.fees_disclosed:
+        score -= 15
+        reasons.append("No dealer fees disclosed (-15)")
     unwanted = [line for line in p.lines if line.kind == "ADD_ON" and not line.user_wants]
     if unwanted:
         penalty = min(30, 10 * len(unwanted))
@@ -196,12 +202,15 @@ def build_rows(contexts: list[DealerContext]) -> list[ComparisonRow]:
                 selling_price_cents=p.selling_price_cents if p else None,
                 discount_from_msrp_cents=p.discount_from_msrp_cents if p else None,
                 dealer_fees_total_cents=p.dealer_fees_total_cents if p else None,
+                fees_disclosed=bool(p and p.fees_disclosed),
                 add_ons_total_cents=p.add_ons_total_cents if p else None,
                 dealer_controlled_cents=p.dealer_controlled_cents if p else None,
                 clean_dealer_controlled_cents=p.clean_dealer_controlled_cents if p else None,
                 tax_cents=offer.tax_cents if offer else None,
                 registration_cents=offer.registration_cents if offer else None,
-                government_total_cents=p.government_total_cents if p else None,
+                government_total_cents=(
+                    p.government_total_cents if p and p.government_disclosed else None
+                ),
                 otd_cents=p.effective_otd_cents if p else None,
                 otd_variance_cents=p.otd_variance_cents if p else None,
                 financing_required=offer.financing_required if offer else None,

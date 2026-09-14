@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.enums import Party
-from app.models import Fact, Offer, StateTransition
+from app.models import Dealer, Fact, Offer, StateTransition
 from app.models.base import utcnow
 from app.services import behavior, comparison, recommender
 from app.services.context import DealerContext, build_contexts
@@ -118,13 +118,18 @@ def _primary_contact(ctx: DealerContext):
 def recent_changes(db: Session, *, since_hours: int = 24, limit: int = 12) -> list[str]:
     """"What changed since yesterday?" answered from the append-only tables."""
     cutoff = utcnow() - timedelta(hours=since_hours)
+    names = {d.id: d.name for d in db.scalars(select(Dealer)).all()}
+
+    def who(dealer_id: int | None) -> str:
+        return names.get(dealer_id, f"Dealer #{dealer_id}")
+
     lines: list[str] = []
 
     for offer in db.scalars(
         select(Offer).where(Offer.created_at >= cutoff).order_by(Offer.created_at.desc())
     ).all():
         lines.append(
-            f"New offer v{offer.version} recorded for dealer #{offer.dealer_id}"
+            f"{who(offer.dealer_id)}: offer v{offer.version} recorded"
             + (f" at {fmt(offer.quoted_otd_cents)} OTD" if offer.quoted_otd_cents else "")
         )
 
@@ -136,14 +141,16 @@ def recent_changes(db: Session, *, since_hours: int = 24, limit: int = 12) -> li
         if transition.was_suppressed_by_pin:
             continue
         lines.append(
-            f"Dealer #{transition.dealer_id}: {transition.from_state} → "
+            f"{who(transition.dealer_id)}: {transition.from_state} → "
             f"{transition.to_state} ({transition.reason_text})"
         )
 
     for fact in db.scalars(
         select(Fact).where(Fact.created_at >= cutoff).order_by(Fact.created_at.desc())
     ).all():
-        lines.append(f"Fact recorded: {fact.attribute} = {fact.display_value}")
+        lines.append(
+            f"{who(fact.dealer_id)}: {fact.attribute} = {fact.display_value}"
+        )
 
     return lines[:limit]
 

@@ -237,3 +237,33 @@ def test_money_formatting_is_exact_at_cent_boundaries():
 def test_cents_conversion_never_loses_a_penny():
     for value in ("27329.42", "1705.59", "0.01", "99999.99"):
         assert fmt(to_cents(value)) == "$" + f"{float(value):,.2f}"
+
+
+def test_an_offer_with_no_fee_lines_is_flagged_as_a_floor_not_a_figure(db):
+    """Absence of a doc fee is not evidence that there isn't one."""
+    dealer = make_dealer(db, "Ocean Honda Milford")
+    offer = make_offer(db, dealer, selling_price_cents=to_cents("28820.00"))
+    result = pricing.compute(offer)
+    assert result.fees_disclosed is False
+    assert any("floor, not a final number" in w for w in result.warnings)
+
+
+def test_a_disclosed_doc_fee_clears_the_flag(db):
+    dealer = make_dealer(db, "Honda of Westport")
+    offer = make_offer(
+        db, dealer, selling_price_cents=to_cents("28035.00"), doc_fee_cents=to_cents("699.00")
+    )
+    result = pricing.compute(offer)
+    assert result.fees_disclosed is True
+    assert not any("floor" in w for w in result.warnings)
+
+
+def test_an_itemized_dealer_fee_line_also_clears_the_flag(db):
+    dealer = make_dealer(db, "Itemized Honda")
+    offer = make_offer(
+        db,
+        dealer,
+        selling_price_cents=to_cents("28000.00"),
+        lines=[{"kind": "DEALER_FEE", "name": "Doc prep", "price_cents": to_cents("199.00")}],
+    )
+    assert pricing.compute(offer).fees_disclosed is True

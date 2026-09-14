@@ -148,6 +148,7 @@ class ComparisonRowOut(ORMModel):
     selling_price_cents: int | None = None
     discount_from_msrp_cents: int | None = None
     dealer_fees_total_cents: int | None = None
+    fees_disclosed: bool = True
     add_ons_total_cents: int | None = None
     dealer_controlled_cents: int | None = None
     clean_dealer_controlled_cents: int | None = None

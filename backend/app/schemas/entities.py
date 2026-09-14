@@ -348,6 +348,8 @@ class PricingOut(BaseModel):
     unwanted_add_ons_cents: int
     clean_dealer_controlled_cents: int | None
     clean_otd_cents: int | None
+    fees_disclosed: bool
+    government_disclosed: bool
     warnings: list[str]
     is_complete: bool
 

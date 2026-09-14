@@ -38,6 +38,8 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 - [x] Honda reference fixture
 - [x] Tests: pricing, versioning, state, contradictions, dedupe, layering
 - [x] One-command startup
+- [x] Undisclosed dealer fees flagged rather than treated as zero
+- [x] Verified end to end in a browser (dashboard, detail, comparison, profile)
 
 ## Phase 2 — Gmail ingestion
 
@@ -125,3 +127,28 @@ YES/NO unless marked otherwise.
     hosted LLM, or must that stay on a local model? **(elaborate)**
 16. Should extracted offers auto-commit when reconciliation is exact and confidence is
     high, or always wait for your review? **(elaborate; currently always review)**
+
+---
+
+## Notes from building Phase 1
+
+Things that turned out to matter and are now enforced:
+
+- **An offer with no tax line has no OTD.** Summing a selling price and a doc fee and
+  calling it "out the door" made Curry Honda — who never gave a tax figure — rank as the
+  cheapest dealer on the dashboard. `computed_otd` is now `NULL` unless the government
+  side is actually known.
+- **Absence of a fee is not a fee of zero.** Ocean Honda quoted a selling price and
+  nothing else; treating that as a $0 doc fee flattered them against dealers who
+  disclosed theirs. Offers with no fee lines are flagged, and their dealer-controlled
+  cost is presented as a floor.
+- **Doc fees are taxable.** Stamford's quote only reconciles to exactly 6.00% PA tax with
+  the doc fee in the tax base. That is now the default, and the implied-rate check exists
+  precisely to catch the cases where it isn't.
+- **An offer is proof the dealer engaged**, even when the message carrying it was never
+  ingested — a quote read over the phone, a PDF dropped in. Both the state engine and the
+  recommender check for an offer before concluding "never replied".
+- **Convenience only means something among dealers who quoted.** Ranking a dealer who
+  sent no price as "most convenient" is not a useful answer.
+- A schema test caught a `Numeric` price column that had slipped into `campaign`. The
+  structural tests earn their place.

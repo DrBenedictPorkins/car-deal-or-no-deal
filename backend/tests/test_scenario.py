@@ -213,3 +213,14 @@ def test_loading_the_fixture_twice_is_not_required_to_be_idempotent(scenario, db
     from app.models import Dealer
 
     assert db.query(Dealer).count() == 7
+
+
+def test_dealers_who_named_no_fees_are_not_credited_with_having_none(scenario, db):
+    """Ocean quoted a selling price and nothing else; that is not a $0 doc fee."""
+    result = comparison.compare(db)
+    ocean = next(r for r in result.rows if r.dealer_name == "Ocean Honda Milford")
+    assert "No dealer fees disclosed" in " ".join(ocean.unresolved_issues)
+    assert ocean.government_total_cents is None
+
+    westport = next(r for r in result.rows if r.dealer_name == "Honda of Westport")
+    assert "No dealer fees disclosed" not in " ".join(westport.unresolved_issues)
