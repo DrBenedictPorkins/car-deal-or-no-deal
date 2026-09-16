@@ -12,7 +12,7 @@ Two sync paths, because Gmail gives two and they fail differently:
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from app.config import Settings, get_settings
 from app.ingestion.base import SyncResult
@@ -115,6 +115,70 @@ class GmailSource:
             )
         return out
 
+    # -- metadata-only sweep ----------------------------------------------
+    def fetch_metadata(
+        self, *, since: datetime | None = None, limit: int | None = None
+    ) -> list[RawMessage]:
+        """Headers and Gmail's own snippet. No bodies leave the mailbox.
+
+        This is what lets the inbox sweep cover a wide date range: the buyer
+        sees enough to recognise a message, and nothing they have not claimed is
+        ever written to disk.
+        """
+        query = self.settings.gmail_import_query or ""
+        if since is not None:
+            query = f"{query} after:{since.strftime('%Y/%m/%d')}".strip()
+        cap = limit or self.settings.gmail_import_max_messages
+
+        ids: list[str] = []
+        page_token = None
+        while len(ids) < cap:
+            response = (
+                self.service.users()
+                .messages()
+                .list(
+                    userId="me",
+                    q=query or None,
+                    maxResults=min(500, cap - len(ids)),
+                    pageToken=page_token,
+                )
+                .execute()
+            )
+            ids.extend(item["id"] for item in response.get("messages", []))
+            page_token = response.get("nextPageToken")
+            if not page_token:
+                break
+
+        out: list[RawMessage] = []
+        for message_id in ids[:cap]:
+            payload = (
+                self.service.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=message_id,
+                    format="metadata",
+                    metadataHeaders=[
+                        "From", "To", "Cc", "Subject", "Date", "Message-ID",
+                        "In-Reply-To", "References", "Delivered-To",
+                    ],
+                )
+                .execute()
+            )
+            out.append(client.to_raw_message(payload))
+        log.info("Inbox sweep: %d message(s) matched %r", len(out), query)
+        return sorted(out, key=lambda m: m.sent_at)
+
+    def fetch_one(self, source_identifier: str) -> RawMessage | None:
+        """One message in full. Called when the buyer promotes it."""
+        payload = (
+            self.service.users()
+            .messages()
+            .get(userId="me", id=source_identifier, format="full")
+            .execute()
+        )
+        return client.to_raw_message(payload)
+
     # -- incremental -------------------------------------------------------
     def fetch_incremental(self, cursor: str | None) -> SyncResult:
         if not cursor:
@@ -165,8 +229,6 @@ class GmailSource:
 
     def _window_scan(self, days: int = 14) -> SyncResult:
         """Bounded rescan used when the history cursor has expired."""
-        from datetime import datetime
-
         after = (datetime.now() - timedelta(days=days)).strftime("%Y/%m/%d")
         query = f"{self.settings.gmail_import_query} after:{after}".strip()
         messages = self.fetch_all(query=query)

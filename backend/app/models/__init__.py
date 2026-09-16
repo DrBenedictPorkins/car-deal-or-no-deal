@@ -2,7 +2,14 @@
 
 from app.models.base import Base, TimestampMixin, utcnow
 from app.models.comms import DraftMessage, LLMRun, Notification, SyncState
-from app.models.dealer import Contact, Dealer, NegotiationStateDef, Vehicle
+from app.models.dealer import (
+    Contact,
+    Dealer,
+    DealerDomain,
+    NegotiationStateDef,
+    Vehicle,
+)
+from app.models.inbox import InboxMessage
 from app.models.interaction import (
     Document,
     EmailSource,
@@ -30,9 +37,11 @@ __all__ = [
     "Contact",
     "Contradiction",
     "Dealer",
+    "DealerDomain",
     "Document",
     "DraftMessage",
     "EmailSource",
+    "InboxMessage",
     "Fact",
     "Interaction",
     "LLMRun",

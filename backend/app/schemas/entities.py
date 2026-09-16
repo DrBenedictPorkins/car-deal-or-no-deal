@@ -60,6 +60,15 @@ class BuyerProfileOut(BuyerProfileIn, Timestamped):
 
 
 # --------------------------------------------------------------------- dealer
+class DealerDomainOut(ORMModel):
+    id: int
+    domain: str
+    kind: str
+    verified: bool
+    learned_from_interaction_id: int | None = None
+    notes: str | None = None
+
+
 class DealerIn(BaseModel):
     name: str
     address: str | None = None
@@ -68,7 +77,8 @@ class DealerIn(BaseModel):
     postal_code: str | None = None
     website: str | None = None
     phone: str | None = None
-    email_domains: str | None = None
+    domains: list[str] = Field(default_factory=list)
+    inquiry_alias: str | None = None
     distance_miles: float | None = None
     is_local: bool = False
     notes: str | None = None
@@ -82,7 +92,8 @@ class DealerPatch(BaseModel):
     postal_code: str | None = None
     website: str | None = None
     phone: str | None = None
-    email_domains: str | None = None
+    domains: list[str] | None = None
+    inquiry_alias: str | None = None
     distance_miles: float | None = None
     is_local: bool | None = None
     notes: str | None = None
@@ -98,7 +109,8 @@ class DealerOut(Timestamped):
     postal_code: str | None = None
     website: str | None = None
     phone: str | None = None
-    email_domains: str | None = None
+    domains: list[DealerDomainOut] = Field(default_factory=list)
+    inquiry_alias: str | None = None
     distance_miles: float | None = None
     is_local: bool
     state_code: str

@@ -78,10 +78,16 @@ def profile(db) -> BuyerProfile:
     return row
 
 
-def make_dealer(db, name: str = "Test Honda", **kwargs) -> Dealer:
+def make_dealer(db, name: str = "Test Honda", domains: str | list[str] | None = None,
+                **kwargs) -> Dealer:
     dealer = Dealer(name=name, **kwargs)
     db.add(dealer)
     db.flush()
+    if domains:
+        from app.ingestion.resolve import learn_domain
+
+        for domain in [domains] if isinstance(domains, str) else domains:
+            learn_domain(db, dealer, domain, verified=True)
     return dealer
 
 

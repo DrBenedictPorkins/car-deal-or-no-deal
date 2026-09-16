@@ -705,6 +705,8 @@ function ProvenanceModal({ factId, onClose }: { factId: number; onClose: () => v
 function DraftCard({ draft, onChange }: { draft: Draft; onChange: () => void }) {
   const [body, setBody] = useState(draft.body);
   const [saving, setSaving] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
   const dirty = body !== draft.body;
 
   async function patch(payload: Record<string, unknown>) {
@@ -712,6 +714,22 @@ function DraftCard({ draft, onChange }: { draft: Draft; onChange: () => void }) 
     try {
       await api.patch(`/drafts/${draft.id}`, payload);
       onChange();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function send() {
+    setSaving(true);
+    setSendError(null);
+    try {
+      const result = await api.post<{ provider_message_id: string }>(
+        `/ingest/drafts/${draft.id}/send`,
+      );
+      setSent(result.provider_message_id);
+      onChange();
+    } catch (e) {
+      setSendError((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -749,10 +767,31 @@ function DraftCard({ draft, onChange }: { draft: Draft; onChange: () => void }) 
         <button className="small" onClick={() => navigator.clipboard?.writeText(body)}>
           Copy
         </button>
-        <span className="small muted">
-          Approving does not send. Paste it into your mail client yourself.
-        </span>
+        {draft.status === "APPROVED" && !draft.sent_at && (
+          <button className="small primary" onClick={send} disabled={saving}>
+            Send
+          </button>
+        )}
+        {draft.sent_at && (
+          <Chip tone="good">sent {when(draft.sent_at)}</Chip>
+        )}
       </div>
+      {sent && (
+        <div className="small muted" style={{ marginTop: 5 }}>
+          Sent — provider message {sent}. The reply will thread onto this conversation.
+        </div>
+      )}
+      {sendError && (
+        <div className="callout warn" style={{ marginTop: 6 }}>
+          <p className="small">{sendError}</p>
+        </div>
+      )}
+      {!draft.sent_at && draft.status !== "APPROVED" && (
+        <div className="small muted" style={{ marginTop: 5 }}>
+          Approve first. Sending also needs an outbound transport and the recipient on
+          the allowlist — nothing leaves otherwise.
+        </div>
+      )}
     </div>
   );
 }

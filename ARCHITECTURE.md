@@ -235,6 +235,36 @@ several. An adapter's only job is `raw source → Interaction + channel-specific
 
 Adding a provider (Outlook, IMAP) means writing an adapter, not touching the engine.
 
+### 7.0 The inbox: claiming, not guessing
+
+Most dealerships publish no email address. You fill in a form on their site, give a
+reply-to, and their CRM writes back from whatever domain it likes. So there is no Sent
+folder to derive scope from, and the sender's domain is a *weak* signal — several
+dealerships using one CRM vendor all reply from the same place.
+
+The resolution is to stop inferring. Mail lands in an **inbox** the buyer looks at, and
+claiming a message is what creates a dealership. Two rules keep that from being tedious:
+
+* **Metadata only until claimed.** Sender, subject, date and the provider's own snippet
+  are stored; the body is fetched when the buyer promotes the message and not before.
+  That is what lets the sweep window be wide — nothing personal reaches disk unless it
+  is pointed at.
+* **Claiming one message claims its neighbours.** Its thread and anything else from the
+  same sender attribute immediately. Setup is one click per dealership, not per message.
+
+Claiming does not *bypass* resolution, it authorizes it. The same ladder runs — alias,
+known address, domain, thread — and a dealership is created only when nothing matches,
+so clicking twice, or clicking a second message from a store already on the board, folds
+in rather than duplicating.
+
+Ranking reorders the list using deterministic signals and never takes an action.
+Suggesting an *order* is safe in a way that suggesting an *action* is not.
+
+**The sweep window is anchored, not rolling.** It starts when the buyer first reached
+out — a fact about the world, asked once with quick picks and editable afterwards. A
+rolling window would drop the opening offers on day 15, and those are what every later
+improvement is measured against.
+
 ### 7.1 Test transports
 
 The same abstraction carries the test strategy. A `MessageSource` yields `RawMessage`;
@@ -243,6 +273,7 @@ nothing downstream knows which one produced it.
 | Mode | Source | Network |
 | --- | --- | --- |
 | UNIT | messages built in the test | none |
+| DEMO | the reference negotiation, dated to the recent past | none |
 | REPLAY | `.eml` files fed chronologically | none |
 | LIVE GMAIL | the real API, dedicated account | yes |
 
@@ -369,7 +400,7 @@ These are the places where the design could be wrong. They are tracked, not buri
 | --- | --- | --- | --- |
 | A1 | `other_taxable_fees` is dealer-controlled; `other_non_tax_fees` is government pass-through | Normalized comparison misranks dealers | Both are editable per-offer with an explicit `is_dealer_controlled` flag on every fee line; the default is documented and shown in the UI |
 | A2 | One active negotiation "campaign" at a time | A user shopping two cars at once sees merged state | Schema carries a nullable `campaign_id` from day one; UI exposes it later |
-| A3 | A dealer is identified by email domain | Dealer groups sharing one domain across rooftops merge incorrectly | Domain is a *hint*; resolution also uses signature address/phone, and unresolved mail lands in a review queue rather than guessing |
+| A3 | A dealer is identified by email domain | Dealer groups sharing one domain across rooftops merge incorrectly | Superseded. Domains are learned rows, a dealership may hold several, and a domain claimed by more than one dealership resolves to *nothing* — the message goes to the inbox for the buyer to place |
 | A4 | One vehicle per offer | Dealers sometimes quote alternates in one email | `Offer.vehicle_id` is required but a single interaction may produce multiple offers |
 | A5 | Quoted-text stripping is reliable enough to trust | Extraction reads the buyer's own words as the dealer's commitment | Stripping is conservative and the stripped region is preserved rather than discarded; automated-sender classification is a second guard; a test asserts a quoted price cannot reach the extractor |
 | A6 | Timestamps are trustworthy for ordering | Contradiction detection picks the wrong "later" statement | Store both source timestamp and ingest timestamp; contradictions show both and never auto-resolve |

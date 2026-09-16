@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useQuery } from "./api";
 import Compare from "./pages/Compare";
 import Dashboard from "./pages/Dashboard";
+import Inbox from "./pages/Inbox";
 import DealerDetailPage from "./pages/DealerDetail";
 import Profile from "./pages/Profile";
 import type { Health } from "./types";
@@ -20,6 +21,7 @@ export default function App() {
           <NavLink to="/" end>
             Dashboard
           </NavLink>
+          <NavLink to="/inbox">Inbox</NavLink>
           <NavLink to="/compare">Compare</NavLink>
           <NavLink to="/profile">Profile</NavLink>
         </nav>
@@ -44,6 +46,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/dealers/:id" element={<DealerDetailPage />} />
+          <Route path="/inbox" element={<Inbox />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Navigate to="/" replace />} />

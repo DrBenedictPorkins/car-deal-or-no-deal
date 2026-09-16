@@ -3,11 +3,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import ActorKind, ContactRole, VehicleCondition
-from app.models.base import Base, TimestampMixin
+from app.enums import ActorKind, ContactRole, DomainKind, VehicleCondition
+from app.models.base import Base, TimestampMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.interaction import Interaction
@@ -46,8 +56,10 @@ class Dealer(Base, TimestampMixin):
     website: Mapped[str | None] = mapped_column(String(300))
     phone: Mapped[str | None] = mapped_column(String(50))
 
-    # Comma-separated resolution hint only — never the sole basis for matching (A3).
-    email_domains: Mapped[str | None] = mapped_column(String(500))
+    # The plus-alias used when submitting this dealership's web form, e.g.
+    # "you+dl-westport@gmail.com". The one identity signal the buyer controls,
+    # and it survives whatever domain the CRM decides to reply from.
+    inquiry_alias: Mapped[str | None] = mapped_column(String(320))
 
     distance_miles: Mapped[float | None] = mapped_column(Numeric(7, 1))
     is_local: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -63,6 +75,9 @@ class Dealer(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
     notes: Mapped[str | None] = mapped_column(Text)
 
+    domains: Mapped[list[DealerDomain]] = relationship(
+        back_populates="dealer", cascade="all, delete-orphan", lazy="selectin"
+    )
     contacts: Mapped[list[Contact]] = relationship(
         back_populates="dealer", cascade="all, delete-orphan"
     )
@@ -76,7 +91,10 @@ class Dealer(Base, TimestampMixin):
         back_populates="dealer", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (Index("ix_dealer_state", "state_code"),)
+    __table_args__ = (
+        Index("ix_dealer_state", "state_code"),
+        Index("ix_dealer_alias", "inquiry_alias"),
+    )
 
 
 class Contact(Base, TimestampMixin):
@@ -137,3 +155,42 @@ class Vehicle(Base, TimestampMixin):
     dealer: Mapped[Dealer] = relationship(back_populates="vehicles")
 
     __table_args__ = (Index("ix_vehicle_vin", "vin"),)
+
+
+class DealerDomain(Base):
+    """A mail domain known to belong to a dealership.
+
+    A dealership routinely has more than one: the store's own domain for
+    salespeople, a separate one for management, and whatever domain their CRM
+    sends from. These are *learned* — folding a message from an unrecognized
+    domain into an existing dealership records it, so the domain list fills
+    itself in and never has to be typed.
+
+    Deliberately not unique on ``domain`` alone: a dealer group legitimately
+    shares one domain across several rooftops, and resolution handles that by
+    refusing to guess rather than by pretending it cannot happen.
+    """
+
+    __tablename__ = "dealer_domain"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dealer_id: Mapped[int] = mapped_column(
+        ForeignKey("dealer.id", ondelete="CASCADE"), nullable=False
+    )
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), default=DomainKind.UNKNOWN)
+    # Which message taught us this, so the domain list has provenance like
+    # everything else the system believes.
+    learned_from_interaction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("interaction.id", ondelete="SET NULL")
+    )
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    dealer: Mapped[Dealer] = relationship(back_populates="domains")
+
+    __table_args__ = (
+        UniqueConstraint("dealer_id", "domain", name="uq_dealer_domain"),
+        Index("ix_dealer_domain_domain", "domain"),
+    )

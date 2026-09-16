@@ -250,8 +250,8 @@ label.check input { width: auto; }
 .callout p { margin: 0; color: var(--text); }
 
 .timeline { list-style: none; margin: 0; padding: 0; }
-.timeline li { padding: 9px 13px; border-bottom: 1px solid var(--border); }
-.timeline li:last-child { border-bottom: none; }
+.timeline > li { padding: 9px 13px; border-bottom: 1px solid var(--border); }
+.timeline > li:last-child { border-bottom: none; }
 .timeline .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .timeline .head time { color: var(--faint); font-size: 11px; font-family: var(--mono); }
 .timeline .subject { font-weight: 600; }
@@ -263,9 +263,13 @@ label.check input { width: auto; }
   max-height: 5.4em;
   overflow: hidden;
 }
-.timeline li.outbound { border-left: 3px solid var(--accent); }
-.timeline li.inbound { border-left: 3px solid var(--good); }
-.timeline li.offer { border-left: 3px solid var(--warn); background: var(--panel-2); }
+.timeline > li.outbound { border-left: 3px solid var(--accent); }
+.timeline > li.inbound { border-left: 3px solid var(--good); }
+.timeline > li.offer { border-left: 3px solid var(--warn); background: var(--panel-2); }
+
+/* Ranking evidence, kept to one line so a message stays scannable. */
+.why { color: var(--faint); font-size: 11px; margin-top: 3px; }
+.why span + span::before { content: " · "; }
 
 .reasons { margin: 4px 0 0; padding-left: 16px; color: var(--muted); font-size: 12px; }
 .reasons li { margin-bottom: 2px; }

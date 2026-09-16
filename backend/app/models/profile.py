@@ -67,6 +67,9 @@ class Campaign(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     target_description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
+    # When the buyer first reached out — the anchor for the inbox sweep. Not a
+    # rolling window: the oldest messages are the opening offers, and everything
+    # else is measured against them, so they must never scroll out of scope.
     opened_at: Mapped[datetime | None] = mapped_column(DateTime)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime)
     notes: Mapped[str | None] = mapped_column(Text)

@@ -509,6 +509,7 @@ def write(directory: Path) -> list[Path]:
 
 def seed_dealers(db) -> dict[str, int]:
     """Create the dealerships. Contacts are left to be discovered by ingestion."""
+    from app.ingestion.resolve import learn_domain
     from app.models import Dealer
     from app.services.states import ensure_states
 
@@ -519,12 +520,12 @@ def seed_dealers(db) -> dict[str, int]:
             name=seed.name,
             city=seed.city,
             state=seed.state,
-            email_domains=seed.domain,
             distance_miles=seed.distance_miles,
             is_local=seed.is_local,
         )
         db.add(dealer)
         db.flush()
+        learn_domain(db, dealer, seed.domain, verified=True)
         ids[seed.name] = dealer.id
     return ids
 

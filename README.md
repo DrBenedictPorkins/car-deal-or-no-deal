@@ -25,10 +25,15 @@ Open it and know, in under ten seconds:
 ## Quick start
 
 ```bash
-./scripts/setup.sh     # virtualenv, dependencies, database
-./scripts/seed.sh      # optional: load the reference negotiation
-./scripts/dev.sh       # http://127.0.0.1:5173  (API docs on :8756/docs)
+./scripts/setup.sh                        # virtualenv, dependencies, database
+cd backend && python -m app.cli demo      # stage a clickable inbox, no Gmail needed
+cd .. && DEALBENCH_INGEST_MODE=DEMO ./scripts/dev.sh
 ```
+
+Open http://127.0.0.1:5173/inbox, claim a couple of messages as dealerships, and watch
+the dashboard fill in. No Gmail account and no network required.
+
+For the hand-entered reference negotiation instead: `./scripts/seed.sh`.
 
 Tests: `./scripts/test.sh` — 250 tests, offline and free. Live Gmail is opt-in; see
 [TESTING.md](TESTING.md).
@@ -107,6 +112,8 @@ Ingestion, behind a transport abstraction that the negotiation engine cannot see
 | **Dedupe** | provider id, content fingerprint, and RFC-822 `Message-ID` — a re-import or a forwarded copy is one message |
 | **Replay** | a corpus fed chronologically, with the whole board snapshotted after each event |
 | **Sanitizer** | real correspondence → committable fixtures, deterministically |
+| **Inbox** | metadata-only sweep, deterministic ranking, claim-to-create-a-dealership with automatic fold-in |
+| **Domains** | a dealership holds several, learned from the mail rather than typed |
 | **Outbound** | draft → approve → send, behind three independent locks |
 
 ### Deliberately not built yet

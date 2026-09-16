@@ -59,7 +59,7 @@ def message(
 
 @pytest.fixture()
 def westport(db):
-    return make_dealer(db, "Honda of Westport", email_domains="westport.example.test")
+    return make_dealer(db, "Honda of Westport", domains="westport.example.test")
 
 
 # ------------------------------------------------------------------- dedupe
@@ -83,7 +83,7 @@ def test_a_reimport_under_a_new_provider_id_is_still_one_message(db, buyer, west
 
 
 def test_identical_boilerplate_from_two_dealers_is_two_messages(db, buyer, westport):
-    make_dealer(db, "Curry Honda", email_domains="curry.example.test")
+    make_dealer(db, "Curry Honda", domains="curry.example.test")
     ingest(db, message("a", sender="chris@westport.example.test", thread="<t-a@test>"))
     ingest(db, message("b", sender="jess@curry.example.test", thread="<t-b@test>"))
     assert db.query(Interaction).count() == 2
@@ -135,8 +135,8 @@ def test_a_new_sender_at_a_known_domain_becomes_a_contact(db, buyer, westport):
 
 def test_a_shared_domain_goes_to_review_rather_than_guessing(db, buyer):
     """Dealer groups share domains; a wrong merge corrupts the whole comparison."""
-    make_dealer(db, "Group Store A", email_domains="autogroup.example.test")
-    make_dealer(db, "Group Store B", email_domains="autogroup.example.test")
+    make_dealer(db, "Group Store A", domains="autogroup.example.test")
+    make_dealer(db, "Group Store B", domains="autogroup.example.test")
     result = ingest(db, message(sender="sales@autogroup.example.test"))
     assert result.dealer_id is None
     assert result.needs_review is True

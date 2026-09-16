@@ -274,7 +274,74 @@ export interface Draft {
   strategy_notes: string | null;
   status: string;
   edited_by_user: boolean;
+  approved_at: string | null;
+  sent_at: string | null;
   created_at: string | null;
+}
+
+export interface DealerDomain {
+  id: number;
+  domain: string;
+  kind: string;
+  verified: boolean;
+  learned_from_interaction_id: number | null;
+  notes: string | null;
+}
+
+export interface InboxMessage {
+  id: number;
+  source_system: string;
+  source_identifier: string;
+  thread_identifier: string | null;
+  from_name: string | null;
+  from_email: string | null;
+  to_emails: string | null;
+  subject: string | null;
+  snippet: string | null;
+  sent_at: string;
+  has_attachments: boolean;
+  status: string;
+  dealer_id: number | null;
+  promoted_interaction_id: number | null;
+  score: number;
+  reasons: string[];
+  suggested_dealer_name: string | null;
+}
+
+export interface InboxCounts {
+  NEW: number;
+  PROMOTED: number;
+  IGNORED: number;
+  sweep_since: string | null;
+  ingest_mode: string;
+}
+
+export interface SweepReport {
+  fetched: number;
+  added: number;
+  already_known: number;
+  since: string | null;
+}
+
+export interface PromoteResult {
+  dealer_id: number;
+  dealer_name: string;
+  created_dealer: boolean;
+  learned_domain: string | null;
+  interaction_id: number | null;
+  offer_id: number | null;
+  also_claimed: number[];
+  already_promoted: boolean;
+}
+
+export interface Campaign {
+  id: number;
+  name: string;
+  target_description: string | null;
+  status: string;
+  opened_at: string | null;
+  closed_at: string | null;
+  notes: string | null;
 }
 
 export interface Dealer {
@@ -290,6 +357,8 @@ export interface Dealer {
   state_is_pinned: boolean;
   status: string;
   notes: string | null;
+  domains: DealerDomain[];
+  inquiry_alias: string | null;
 }
 
 export interface Contact {

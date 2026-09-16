@@ -20,6 +20,8 @@ export default function Dashboard() {
   const dashboard = useQuery<DashboardData>("/dashboard");
   const notifications = useQuery<Notification[]>("/notifications");
   const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
   const [asked, setAsked] = useState<Answer | null>(null);
 
   async function refresh() {
@@ -30,6 +32,28 @@ export default function Dashboard() {
       notifications.reload();
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function sync() {
+    setSyncing(true);
+    setSyncNote(null);
+    try {
+      const report = await api.post<{ created: number; duplicates: number; offers: number }>(
+        "/ingest/sync",
+        { mode: "incremental" },
+      );
+      setSyncNote(
+        `${report.created} new message${report.created === 1 ? "" : "s"}` +
+          (report.offers ? `, ${report.offers} offer(s) extracted` : "") +
+          (report.duplicates ? `, ${report.duplicates} already had` : ""),
+      );
+      dashboard.reload();
+      notifications.reload();
+    } catch (e) {
+      setSyncNote((e as Error).message);
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -82,9 +106,15 @@ export default function Dashboard() {
         count={`${rows.length} dealers, most urgent first`}
         tight
         actions={
-          <button className="small" onClick={refresh} disabled={refreshing}>
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
+          <div className="pill-row">
+            {syncNote && <span className="small muted">{syncNote}</span>}
+            <button className="small" onClick={sync} disabled={syncing}>
+              {syncing ? "Checking mail…" : "Check mail"}
+            </button>
+            <button className="small" onClick={refresh} disabled={refreshing}>
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         }
       >
         <div className="table-wrap">

@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from app.api.deps import DbSession, get_dealer_or_404
+from app.ingestion import resolve
 from app.models import Contact, Dealer, NegotiationStateDef, StateTransition, Vehicle
 from app.schemas.entities import (
     ContactIn,
@@ -38,9 +39,14 @@ def list_dealers(db: DbSession):
 
 @router.post("/dealers", response_model=DealerOut, status_code=201)
 def create_dealer(payload: DealerIn, db: DbSession):
-    dealer = Dealer(**payload.model_dump())
+    data = payload.model_dump()
+    domains = data.pop("domains", [])
+    dealer = Dealer(**data)
     db.add(dealer)
     db.flush()
+    for domain in domains:
+        resolve.learn_domain(db, dealer, domain, verified=True)
+    db.refresh(dealer)
     return dealer
 
 
@@ -52,9 +58,22 @@ def read_dealer(dealer_id: int, db: DbSession):
 @router.patch("/dealers/{dealer_id}", response_model=DealerOut)
 def update_dealer(dealer_id: int, payload: DealerPatch, db: DbSession):
     dealer = get_dealer_or_404(db, dealer_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    domains = data.pop("domains", None)
+    for key, value in data.items():
         setattr(dealer, key, value)
+    if domains is not None:
+        # Adding a domain by hand is the escape hatch for one you know about
+        # before any mail has arrived from it. Removing is explicit.
+        wanted = {d.strip().lower() for d in domains if d.strip()}
+        for existing in list(dealer.domains):
+            if existing.domain not in wanted:
+                db.delete(existing)
+        db.flush()
+        for domain in wanted:
+            resolve.learn_domain(db, dealer, domain, verified=True)
     db.flush()
+    db.refresh(dealer)
     return dealer
 
 

@@ -17,8 +17,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__, logging_config
 from app.api import (
+    campaigns,
     dealers,
     drafts,
+    inbox,
     ingest,
     interactions,
     knowledge,
@@ -84,6 +86,8 @@ def create_app() -> FastAPI:
 
     for module in (
         profile,
+        campaigns,
+        inbox,
         dealers,
         interactions,
         offers,

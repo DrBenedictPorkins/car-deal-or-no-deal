@@ -7,6 +7,7 @@ production, not about the harness.
 | Mode | Source | Network | Used for |
 | --- | --- | --- | --- |
 | **UNIT** | messages constructed in the test | none | pricing, state, extraction, dedupe |
+| **DEMO** | the reference negotiation, dated to the last few days | none | clicking through the inbox and the dashboard by hand |
 | **REPLAY** | `.eml` files on disk, fed chronologically | none | the whole negotiation, end to end |
 | **LIVE GMAIL** | the real Gmail API, dedicated account | yes | Gmail itself — OAuth, threading, sync, send |
 

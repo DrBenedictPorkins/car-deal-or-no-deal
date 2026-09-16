@@ -64,7 +64,13 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 - [x] Outbound send path behind three independent locks
 - [x] Live Gmail test suite, opt-in and skipped by default
 - [x] Review queue API (`/api/ingest/review`, assign by hand)
-- [ ] Review queue **UI** — the API exists, the dashboard does not surface it yet
+- [x] Inbox UI — sweep, rank, claim-as-dealership, fold-in, ignore/restore
+- [x] Campaign start date with quick picks, editable, re-sweepable
+- [x] Metadata-only sweep — bodies fetched on claim, not before
+- [x] Multi-domain dealerships, learned from mail rather than typed
+- [x] `Channel.WEB_FORM` and `Dealer.inquiry_alias`
+- [x] Check-mail and Send buttons in the UI
+- [ ] Alias generator — offer `you+dl-westport@…` when adding a dealership
 - [ ] Attachment download (`gmail.attachments`) — deferred to the Phase 4 document pipeline
 
 ## Phase 3 — LLM extraction and assistance

@@ -29,6 +29,25 @@ class SendRefused(RuntimeError):
     """Raised when a send is blocked. Carries the reason, verbatim, to the caller."""
 
 
+def strip_body(message: RawMessage, snippet_chars: int = 200) -> RawMessage:
+    """Drop the body, keeping a short preview.
+
+    Local sources have the body to hand, but the inbox is metadata-only by
+    contract — uniformly, so the replay path exercises the same discipline the
+    Gmail path is bound by.
+    """
+    from dataclasses import replace
+
+    preview = (message.snippet or message.best_body or "").strip().replace("\n", " ")
+    return replace(
+        message,
+        body_text=None,
+        body_html=None,
+        raw_bytes=None,
+        snippet=preview[:snippet_chars],
+    )
+
+
 @dataclass(frozen=True)
 class SyncResult:
     messages: list[RawMessage]
@@ -45,6 +64,19 @@ class MessageSource(Protocol):
 
     def fetch_incremental(self, cursor: str | None) -> SyncResult:
         """Only what is new since ``cursor``."""
+
+    def fetch_metadata(
+        self, *, since: datetime | None = None, limit: int | None = None
+    ) -> list[RawMessage]:
+        """Headers and a snippet only — no bodies.
+
+        The inbox sweep uses this so a broad date range can be scanned without
+        the buyer's personal correspondence landing on disk. Bodies arrive only
+        when a message is promoted.
+        """
+
+    def fetch_one(self, source_identifier: str) -> RawMessage | None:
+        """One message in full, fetched at promote time."""
 
 
 @runtime_checkable
@@ -89,6 +121,17 @@ class EmlDirectorySource:
             cursor=newest.isoformat() if newest else cursor,
         )
 
+    def fetch_metadata(
+        self, *, since: datetime | None = None, limit: int | None = None
+    ) -> list[RawMessage]:
+        messages = [m for m in self._load() if since is None or m.sent_at >= since]
+        return [strip_body(m) for m in (messages[:limit] if limit else messages)]
+
+    def fetch_one(self, source_identifier: str) -> RawMessage | None:
+        return next(
+            (m for m in self._load() if m.source_identifier == source_identifier), None
+        )
+
 
 class StaticSource:
     """An in-memory list. UNIT mode, and the seam every test constructs by hand."""
@@ -107,6 +150,17 @@ class StaticSource:
             messages = [m for m in messages if m.sent_at > since]
         newest = max((m.sent_at for m in messages), default=None)
         return SyncResult(messages, newest.isoformat() if newest else cursor)
+
+    def fetch_metadata(
+        self, *, since: datetime | None = None, limit: int | None = None
+    ) -> list[RawMessage]:
+        messages = [m for m in self._messages if since is None or m.sent_at >= since]
+        return [strip_body(m) for m in (messages[:limit] if limit else messages)]
+
+    def fetch_one(self, source_identifier: str) -> RawMessage | None:
+        return next(
+            (m for m in self._messages if m.source_identifier == source_identifier), None
+        )
 
 
 # ---------------------------------------------------------------- transports
@@ -168,6 +222,32 @@ class SafeTransport:
         return self.inner.send(message)
 
 
+class DemoSource(StaticSource):
+    """The reference negotiation, with its dates shifted to the recent past.
+
+    Lets the inbox, the promote flow and the dashboard be exercised end to end
+    with no Gmail account and no network — which matters because the whole point
+    of the inbox view is that you look at it and click, and you cannot do that
+    against an empty mailbox.
+    """
+
+    def __init__(self, *, ending_days_ago: int = 1) -> None:
+        from datetime import timedelta
+
+        from app.fixtures import golden_corpus
+
+        messages = golden_corpus.build()
+        latest = max(m.sent_at for m in messages)
+        target = datetime.now().replace(microsecond=0) - timedelta(days=ending_days_ago)
+        shift = target - latest
+
+        from dataclasses import replace
+
+        super().__init__(
+            [replace(m, sent_at=m.sent_at + shift) for m in messages], name="demo"
+        )
+
+
 def get_transport(settings: Settings | None = None) -> MessageTransport:
     """The configured transport, always wrapped in the safety layer."""
     settings = settings or get_settings()
@@ -190,4 +270,6 @@ def get_source(settings: Settings | None = None) -> MessageSource:
         return GmailSource(settings=settings)
     if mode == "REPLAY":
         return EmlDirectorySource(settings.data_dir / "replay")
+    if mode == "DEMO":
+        return DemoSource()
     return StaticSource([])

@@ -4,6 +4,7 @@
     python -m app.cli reset         drop and recreate the database
     python -m app.cli refresh       re-run signals, states, contradictions, notifications
     python -m app.cli report        print the dashboard to the terminal
+    python -m app.cli demo          stage a clickable inbox, no Gmail required
 
     python -m app.cli golden-build  regenerate the sanitized golden .eml corpus
     python -m app.cli replay        replay a corpus chronologically and print the timeline
@@ -95,6 +96,77 @@ def cmd_report(args: argparse.Namespace) -> int:  # noqa: ARG001
 
 
 # --------------------------------------------------------------------- corpus
+
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    """Set up a clickable inbox with no Gmail account and no network.
+
+    Creates a campaign dated before the first message, sweeps the reference
+    negotiation in as unclaimed mail, and stops. Nothing is attributed — the
+    point is that you open the inbox and decide what is a dealership.
+    """
+    import os
+
+    from app.ingestion.base import DemoSource
+    from app.models import BuyerProfile, Campaign
+    from app.services import inbox as inbox_service
+    from app.services.money import to_cents
+
+    os.environ["DEALBENCH_INGEST_MODE"] = "DEMO"
+    get_settings.cache_clear()
+
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    source = DemoSource()
+    earliest = min(m.sent_at for m in source.fetch_all())
+
+    with session_scope() as db:
+        ensure_states(db)
+        profile = BuyerProfile(
+            id=1,
+            display_name="Test Buyer",
+            email="buyer@example.test",
+            target_year=2026,
+            target_make="Honda",
+            target_model="Civic Hatchback",
+            target_trim="Sport",
+            registration_state="PA",
+            zip_code="18435",
+            expected_tax_rate_bp=600,
+            wants_add_ons=False,
+            local_dealer_premium_cents=to_cents("300.00"),
+        )
+        db.add(profile)
+        campaign = Campaign(
+            name="2026 Civic Hatchback Sport",
+            target_description="New 2026 Honda Civic Hatchback Sport, non-hybrid",
+            opened_at=earliest.replace(hour=0, minute=0, second=0, microsecond=0),
+            status="ACTIVE",
+        )
+        db.add(campaign)
+        db.flush()
+
+        report = inbox_service.sweep(db, source, since=campaign.opened_at, campaign=campaign)
+        rows = inbox_service.listing(db)
+
+    print()
+    print(f"  Campaign opened {campaign.opened_at:%b %d} · swept {report.added} messages")
+    print("  No dealerships yet — that is the point. Open the inbox and claim some.")
+    print()
+    print(f"  {'SCORE':>6}  {'FROM':<44}{'SUBJECT'}")
+    print("  " + "-" * 104)
+    for row in rows[:12]:
+        print(
+            f"  {row.score:>6.1f}  {str(row.from_email)[:43]:<44}"
+            f"{str(row.subject)[:52]}"
+        )
+    if len(rows) > 12:
+        print(f"  … and {len(rows) - 12} more")
+    print()
+    print("  Start the app with DEALBENCH_INGEST_MODE=DEMO and open http://127.0.0.1:5173")
+    print()
+    return 0
 
 
 def cmd_golden_build(args: argparse.Namespace) -> int:  # noqa: ARG001
@@ -309,6 +381,9 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("report", help="print the dashboard")
     p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("demo", help="set up a clickable inbox with no Gmail needed")
+    p.set_defaults(func=cmd_demo)
 
     p = sub.add_parser("golden-build", help="regenerate the sanitized golden corpus")
     p.set_defaults(func=cmd_golden_build)

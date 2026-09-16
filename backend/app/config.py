@@ -44,9 +44,10 @@ class Settings(BaseSettings):
 
     # --- ingestion ----------------------------------------------------------
     # UNIT   — no transport at all; stored fixture messages only.
+    # DEMO   — the reference negotiation, dated to the recent past, no network.
     # REPLAY — historical .eml messages replayed chronologically.
     # GMAIL  — the real Gmail API against a dedicated account.
-    # Business logic is identical in all three; only the source differs.
+    # Business logic is identical in all of them; only the source differs.
     ingest_mode: str = "UNIT"
 
     gmail_client_secret_file: Path | None = None

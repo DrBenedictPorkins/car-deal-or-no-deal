@@ -12,6 +12,10 @@ from enum import StrEnum
 
 class Channel(StrEnum):
     EMAIL = "EMAIL"
+    # Most dealerships publish no address at all — you fill in a form on their site
+    # and give a reply-to. That submission is a real outbound contact and starts the
+    # clock, so it needs to be an interaction like any other.
+    WEB_FORM = "WEB_FORM"
     CALL = "CALL"
     SMS = "SMS"
     IN_PERSON = "IN_PERSON"
@@ -151,6 +155,20 @@ class FinancingStance(StrEnum):
     NEVER = "NEVER"
     ONLY_IF_ADVANTAGEOUS = "ONLY_IF_ADVANTAGEOUS"
     PREFERRED = "PREFERRED"
+
+
+class InboxStatus(StrEnum):
+    NEW = "NEW"
+    PROMOTED = "PROMOTED"
+    IGNORED = "IGNORED"
+
+
+class DomainKind(StrEnum):
+    PRIMARY = "PRIMARY"
+    CRM = "CRM"
+    MANAGEMENT = "MANAGEMENT"
+    GROUP = "GROUP"
+    UNKNOWN = "UNKNOWN"
 
 
 class NotificationType(StrEnum):

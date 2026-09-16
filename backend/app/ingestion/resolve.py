@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.enums import ActorKind, ContactRole, Direction
+from app.enums import ActorKind, ContactRole, Direction, DomainKind
 from app.ingestion.messages import RawMessage, address_of, display_name_of, domain_of
-from app.models import BuyerProfile, Contact, Dealer, Interaction
+from app.models import BuyerProfile, Contact, Dealer, DealerDomain, Interaction
 
 # Titles dealers actually use, mapped to the roles the model knows about.
 ROLE_HINTS: tuple[tuple[str, str], ...] = (
@@ -88,19 +88,96 @@ def _contact_by_address(db: Session, address: str | None) -> Contact | None:
     ).first()
 
 
+def _contacts_by_address(db: Session, address: str | None) -> list[Contact]:
+    if not address:
+        return []
+    return list(
+        db.scalars(select(Contact).where(func.lower(Contact.email) == address.lower())).all()
+    )
+
+
 def _dealers_by_domain(db: Session, domain: str | None) -> list[Dealer]:
+    """Dealerships known to use this mail domain.
+
+    An indexed lookup against learned domains rather than a scan over every
+    dealership splitting a comma-separated string.
+    """
     if not domain:
         return []
-    matches = []
-    for dealer in db.scalars(select(Dealer)).all():
-        domains = {
-            part.strip().lower()
-            for part in (dealer.email_domains or "").split(",")
-            if part.strip()
-        }
-        if domain.lower() in domains:
-            matches.append(dealer)
-    return matches
+    rows = db.scalars(
+        select(DealerDomain).where(func.lower(DealerDomain.domain) == domain.lower())
+    ).all()
+    seen: dict[int, Dealer] = {}
+    for row in rows:
+        dealer = db.get(Dealer, row.dealer_id)
+        if dealer is not None:
+            seen[dealer.id] = dealer
+    return list(seen.values())
+
+
+def _dealer_by_alias(db: Session, message: RawMessage) -> Dealer | None:
+    """Match the plus-alias the buyer used on the dealership's web form.
+
+    Checked before anything else because it is the only signal the buyer
+    controls. The dealership's sending domain is their CRM vendor's choice and
+    is frequently shared across unrelated stores; the alias is not.
+    """
+    recipients = {
+        address_of(a)
+        for a in (*message.to_addresses, *message.cc_addresses)
+        if address_of(a)
+    }
+    if not recipients:
+        return None
+    for dealer in db.scalars(
+        select(Dealer).where(Dealer.inquiry_alias.is_not(None))
+    ).all():
+        alias = address_of(dealer.inquiry_alias)
+        if alias and alias in recipients:
+            return dealer
+    return None
+
+
+def learn_domain(
+    db: Session,
+    dealer: Dealer,
+    domain: str | None,
+    *,
+    kind: str = DomainKind.UNKNOWN,
+    interaction_id: int | None = None,
+    verified: bool = False,
+) -> DealerDomain | None:
+    """Record a mail domain as belonging to a dealership.
+
+    Called when a message from an unrecognized domain is folded into an existing
+    dealership, which is how the domain list fills itself in — a store's
+    management domain and its CRM's domain get learned the first time each one
+    writes, and never have to be typed.
+    """
+    if not domain:
+        return None
+    domain = domain.strip().lower()
+    existing = db.scalars(
+        select(DealerDomain).where(
+            DealerDomain.dealer_id == dealer.id,
+            func.lower(DealerDomain.domain) == domain,
+        )
+    ).first()
+    if existing is not None:
+        if verified and not existing.verified:
+            existing.verified = True
+            db.flush()
+        return existing
+    row = DealerDomain(
+        dealer_id=dealer.id,
+        domain=domain,
+        kind=kind,
+        learned_from_interaction_id=interaction_id,
+        verified=verified,
+    )
+    db.add(row)
+    db.flush()
+    return row
 
 
 def _dealer_by_thread(db: Session, thread_id: str | None) -> Dealer | None:
@@ -151,9 +228,24 @@ def resolve(
     address = address_of(counterparty)
     domain = domain_of(counterparty)
 
-    # 1. An address we already know is the only unambiguous evidence there is.
-    contact = _contact_by_address(db, address)
-    if contact is not None:
+    # 0. The alias the buyer used on this dealership's form. Theirs, not the
+    #    dealer's, so no CRM can muddle it.
+    aliased = _dealer_by_alias(db, message)
+    if aliased is not None:
+        return Resolution(
+            direction=direction,
+            dealer=aliased,
+            contact=_contact_by_address(db, address),
+            reason=f"Addressed to {aliased.inquiry_alias}, the alias used for {aliased.name}.",
+        )
+
+    # 1. A known address — but only when it belongs to exactly one dealership.
+    #    A shared BDC or CRM mailbox writing on behalf of several rooftops is
+    #    real, and picking the first match would silently merge two negotiations.
+    contacts = _contacts_by_address(db, address)
+    contact_dealers = {c.dealer_id for c in contacts}
+    if len(contact_dealers) == 1:
+        contact = contacts[0]
         return Resolution(
             direction=direction,
             dealer=db.get(Dealer, contact.dealer_id),
@@ -163,6 +255,9 @@ def resolve(
 
     dealer: Dealer | None = None
     reason = ""
+    if len(contact_dealers) > 1:
+        # Ambiguous sender: fall through to the thread, which is unambiguous.
+        reason = f"{address} is used by {len(contact_dealers)} dealerships; "
 
     # 2. Domain, but only when it identifies exactly one dealer (assumption A3).
     domain_matches = _dealers_by_domain(db, domain)
@@ -180,11 +275,12 @@ def resolve(
             ),
         )
 
-    # 3. An existing thread already resolved to someone.
+    # 3. An existing thread already resolved to someone. Ranked above the body
+    #    text because a thread is a fact and a name in prose is a guess.
     if dealer is None:
         dealer = _dealer_by_thread(db, message.thread_identifier)
         if dealer is not None:
-            reason = f"Continues Gmail thread {message.thread_identifier}."
+            reason = f"{reason}continues an existing thread with {dealer.name}."
 
     # 4. The dealership naming itself in the body or signature.
     if dealer is None:

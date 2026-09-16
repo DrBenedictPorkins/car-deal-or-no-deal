@@ -31,6 +31,7 @@ from app.enums import (
     SubjectType,
     VehicleCondition,
 )
+from app.ingestion.resolve import learn_domain
 from app.models import (
     BuyerProfile,
     Campaign,
@@ -157,10 +158,10 @@ def load(db: Session, *, base_time: datetime | None = None, accepted: bool = Tru
             is_local=local,
             distance_miles=miles,
             campaign_id=campaign.id,
-            email_domains=name.lower().replace(" ", "") + ".example",
         )
         db.add(row)
         db.flush()
+        learn_domain(db, row, name.lower().replace(" ", "") + ".example", verified=True)
         made[name] = row
         return row
 
@@ -182,7 +183,7 @@ def load(db: Session, *, base_time: datetime | None = None, accepted: bool = Tru
             actor_kind=automated,
             automation_evidence=evidence,
             is_primary=primary,
-            email=f"{name.split()[0].lower()}@{d.email_domains}",
+            email=f"{name.split()[0].lower()}@{d.domains[0].domain}",
         )
         db.add(row)
         db.flush()
